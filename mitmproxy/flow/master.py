@@ -6,6 +6,7 @@ import sys
 from typing import List, Optional, Set  # noqa
 
 import netlib.exceptions
+import mitmproxy
 from mitmproxy import controller
 from mitmproxy import exceptions
 from mitmproxy import filt
@@ -58,6 +59,8 @@ class FlowMaster(controller.Master):
 
         self.stream = None
         self.apps = modules.AppRegistry()
+
+        mitmproxy._master = self
 
     def start_app(self, host, port):
         self.apps.add(

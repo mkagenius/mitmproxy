@@ -1,3 +1,5 @@
+from mock import mock
+
 from mitmproxy.script import Script
 from mitmproxy.exceptions import ScriptException
 from test.mitmproxy import tutils
@@ -81,3 +83,10 @@ def test_script_exception():
         s.load()
         with tutils.raises(ScriptException):
             s.unload()
+
+
+def test_script_context():
+    import mitmproxy
+    mitmproxy.foo = 42
+    with Script(tutils.test_data.path("data/scripts/context.py"), "remove this") as s:
+        assert s.ns.get("x") == 42
