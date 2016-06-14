@@ -28,6 +28,19 @@ def setargs(args):
         sys.argv = oldargs
 
 
+@contextlib.contextmanager
+def provide_context(context_name, context):
+    old_module = sys.modules.get(context_name)
+    sys.modules[context_name] = context
+    try:
+        yield
+    finally:
+        if old_module is None:
+            del sys.modules[context_name]
+        else:
+            sys.modules[context_name] = old_module
+
+
 class Script(object):
 
     """
@@ -92,7 +105,8 @@ class Script(object):
         try:
             with open(self.filename) as f:
                 code = compile(f.read(), self.filename, 'exec')
-                exec(code, self.ns, self.ns)
+                with provide_context("mitmproxy", self.ctx):
+                    exec(code, self.ns, self.ns)
         except Exception:
             six.reraise(
                 exceptions.ScriptException,
@@ -135,7 +149,8 @@ class Script(object):
         if f:
             try:
                 with setargs(self.args):
-                    return f(self.ctx, *args, **kwargs)
+                    with provide_context("mitmproxy", self.ctx):
+                        return f(self.ctx, *args, **kwargs)
             except Exception:
                 six.reraise(
                     exceptions.ScriptException,

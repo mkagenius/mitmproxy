@@ -81,3 +81,12 @@ def test_script_exception():
         s.load()
         with tutils.raises(ScriptException):
             s.unload()
+
+
+class TestContext:
+    foo = 42
+
+
+def test_script_context():
+    with Script(tutils.test_data.path("data/scripts/context.py"), TestContext()) as s:
+        assert s.ns.get("x") == 42
