@@ -7,6 +7,10 @@ from mitmproxy.console import common
 from mitmproxy.console import signals
 from mitmproxy.flow import export
 
+import time
+import re
+
+import urlparse
 
 def _mkhelp():
     text = []
@@ -175,9 +179,185 @@ class ConnectionItem(urwid.WidgetWrap):
                 self.master.view_flow(self.flow)
                 return True
 
+
+    def remove_auth(self, headers):
+        if 'authorization' in headers:
+            headers.set_all('authorization', [])
+        if 'Authorization' in headers:
+            headers.set_all('Authorization', [])
+        if 'X-Authorization' in headers:
+            headers.set_all('X-Authorization', [])
+        if 'Cookie' in headers:
+            headers.set_all('Cookie', [])
+        if 'cookie' in headers:
+            headers.set_all('cookie', [])
+        return headers
+
+    def revert_to_original(self):
+        if not self.flow.modified():
+                signals.status_message.send(message="Flow not modified.")
+                return
+        self.state.revert(self.flow)
+        signals.flowlist_change.send(self)
+        signals.status_message.send(message="Reverted.")
+
+    def test_authentication(self, f):
+        if not f.response:
+            return 0
+        #self.flow.backup()
+        prev_response = f.response
+        signals.status_message.send(message="Testing authentication.")
+        f.request.headers = self.remove_auth(f.request.headers)
+        r = self.master.replay_request(f)
+        return 3
+
+    def test_payu_salt_leak(self, f):
+        
+        signals.status_message.send(message="Testing payu salt leak.")
+        # f.request.headers = self.remove_auth(f.request.headers)
+        found_salt = False
+        if f.request.content:
+            post_str = f.request.content
+            post_dict = dict(urlparse.parse_qsl(post_str))
+            found_salt = common.salt_leakage(post_dict)
+
+        if f.response.content:
+            found_salt = common.salt_leakage_in_response(f.response.content)
+
+        if found_salt: 
+            return 2 # bug found
+        return 1 # no bug
+
+    def test_otp_leak(self, f):
+        
+        prev_response = f.response
+        signals.status_message.send(message="Testing otp leak")
+        # f.request.headers = self.remove_auth(f.request.headers)
+        content_type = ""
+        if "content-type" in f.request.headers:
+            content_type = f.request.headers["content-type"]
+        elif "Content-Type" in f.request.headers:
+            content_type = f.request.headers["Content-Type"]
+        
+        if "json" in content_type.lower() and common.resp_body_contains_otp(f.response.content, content_type):
+            return 2
+        else:
+            return 1
+
+    def edit_url(self, regex, url):
+        ret = ""
+
+        ss = regex.finditer(url)
+
+        prev = 0
+        for i in ss:
+            span_tup = i.span()
+            ret += url[prev:span_tup[0]]
+            ret += str(int(url[span_tup[0]:span_tup[1]]) - 1)
+            prev = span_tup[1]
+
+        ret += url[prev:]
+
+        return ret
+
+
+    def test_authorization(self, f):
+        if not f.response:
+            return 0
+        #self.flow.backup()
+        prev_response = f.response
+        signals.status_message.send(message="Testing authorization.")
+
+        f.request.headers = self.remove_auth(f.request.headers)
+
+        re_phone_or_email_or_userid = re.compile(r'(?:\b\d{10}\b)|(?:[^@\/=\?\ ]+(@|%40)[^@\/=\?]+\.[^@\/=\?]+)|(?:\b\d{4,8}\b)')
+
+        # email replaced with some test account email
+        re_email = re.compile(r'[^@\/=\?]+(@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+')
+
+        # phone replaced with some test account phone
+        re_phone = re.compile(r'\b\d{10}\b')
+
+        # user id / card id / other id decreased by 1
+        re_userid = re.compile(r'\b\d{4,8}\b')
+        f.request.url = self.edit_url(re_userid, f.request.url)
+        signals.status_message.send(message="Edited url: " + f.request.url)
+        r = self.master.replay_request(f)
+        return 3
+
+    def gather_authentication_result(self, f):
+        if "backup" not in f.get_state():
+            signals.status_message.send(message="No backup found..maybe you checked result too fast.")
+            return 0
+        backup_flow = f.get_state()["backup"]
+        if f.response.content == backup_flow["response"]["content"]:
+            return 2 # auth broken
+        if f.response.content != backup_flow["response"]["content"]:
+            return 1
+
+        return 0
+
+    def gather_authorization_result(self, f):
+        if "backup" not in f.get_state():
+            signals.status_message.send(message="No backup found..maybe you checked result too fast.")
+            return 0
+        backup_flow = f.get_state()["backup"]
+
+        ## TODO test if response contains data different than this but some user data
+        if f.response.status_code >= 200 and f.response.status_code < 300:
+            if f.response.content == backup_flow["response"]["content"]:
+                return 1 # auth broken
+            if f.response.content != backup_flow["response"]["content"]:
+                return 2
+        else:
+            return 1
+
+        return 0
+
     def keypress(self, xxx_todo_changeme, key):
         (maxcol,) = xxx_todo_changeme
         key = common.shortcuts(key)
+
+        if key == "1":
+            for f in self.state.flows:
+                if f.marked:
+                    f.authentication = self.test_authentication(f)
+                    signals.flowlist_change.send(self)
+
+        if key == "2":
+            for f in self.state.flows:
+                if f.marked:
+                    f.authentication = self.gather_authentication_result(f)
+                    signals.flowlist_change.send(self)
+
+        if key == "3":
+            cnt = 1
+            for f in self.state.flows:
+                if f.marked:
+                    f.authorization = self.test_authorization(f)
+                    signals.flowlist_change.send(self)
+
+        if key == "4":
+            for f in self.state.flows:
+                if f.marked:
+                    f.authorization = self.gather_authorization_result(f)
+                    signals.flowlist_change.send(self)
+
+        # payu salt in req or resp
+        if key == "5":
+            for f in self.state.flows:
+                if f.marked:
+                    f.payu_salt_leak = self.test_payu_salt_leak(f)
+                    signals.flowlist_change.send(self) 
+
+        # otp in resp
+        if key == "6":
+            for f in self.state.flows:
+                if f.marked:
+                    f.otp_leak = self.test_otp_leak(f)
+                    signals.flowlist_change.send(self)
+
+
         if key == "a":
             self.flow.accept_intercept(self.master)
             signals.flowlist_change.send(self)

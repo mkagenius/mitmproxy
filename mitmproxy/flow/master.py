@@ -263,7 +263,7 @@ class FlowMaster(controller.Master):
                 self.event_queue,
                 self.should_exit
             )
-            rt.start()  # pragma: no cover
+            started_thread = rt.start()  # pragma: no cover
             if block:
                 rt.join()
 
