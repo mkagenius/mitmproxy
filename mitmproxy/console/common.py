@@ -13,7 +13,7 @@ from mitmproxy.flow import export
 from netlib import human
 
 import re
-
+import json
 
 try:
     import pyperclip
@@ -43,6 +43,123 @@ re_userid = re.compile(r'\b\d{4,7}\b')
 
 re_phone_or_email_or_userid = re.compile(r'(?:\b\d{10}\b)|(?:[^@\/=\?\ ]+(@|%40)[^@\/=\?]+\.[^@\/=\?]+)|(?:\b\d{4,8}\b)')
 
+otp_regex = re.compile(r'^\d{3,6}$')
+
+otp_params = ["pin", "otp", "code", "onetimepass", "onetimepassword"]
+
+def parse_qs2(body):
+        d = parse_qs(body)
+        for k, v in d.iteritems():
+                if type(v) == list:
+                        d[k] = v[0]
+
+        return d
+
+def process_list(k,v):
+        d = {}
+        if len(v) > 0:
+                if type(v[0]) == dict:
+                        for i in v:
+                                d.update(flatten(i))
+                elif type(v[0]) == list:
+                        for i in v:
+                                d.update(process_list(i))
+                elif type(v[0]) == str:
+                        d[k] = v[0]
+        else:
+                d[k]=""
+        return d
+
+def flatten(json):
+        d = {}
+        for k,v in json.iteritems():
+                if type(v) == dict:
+                        d.update(flatten(v))
+                elif type(v) == list:
+                        d.update(process_list(k,v))
+                else:
+                        d[k] = v
+
+        return d
+
+def resp_body_contains_otp(body_content, content_type):
+        
+        try:
+                resp_json = json.loads(body_content)
+                resp_json_flatten = flatten(resp_json)
+                
+
+                for k,v in resp_json_flatten.iteritems():
+                        
+                        if otp_regex.match(str(v)) or "sms" in k.lower() or "otp" in k.lower(): 
+                                signals.status_message.send(message="[otp] OTP? %s=%s" % (k,v))
+                                return 3
+
+        except ValueError:
+                signals.status_message.send(message="[otp]Content type was: %s but no json could be decoded." % content_type)
+                return 2
+
+        return 2
+
+def salt_leakage_in_response(content):
+    # ,"salt":"luYFtcEf",
+    m = re.findall(r"\bsalt\b[\s\"\']*.{11,13}", content, re.I)
+    
+
+    if len(m) > 0:
+        print(m,"---salt in response")
+        m = m[0].split(":")
+        if len(m) > 1:
+            m = m[1]
+        else:
+            return False
+
+        if len(m.split("\"")) > 1:
+            return m.split("\"")[1]
+        if len(m.split("'")) > 1:
+            return m.split("'")[1]
+        return m
+            
+
+
+    return False
+
+def salt_leakage(post_dict, url):
+    
+    print("inside salt leakage check")
+    is_payu = len(re.findall(r"payu", url, re.I)) > 0
+
+    for key, val in post_dict.iteritems():
+        print(key,val)  
+        # param key matches "salt"
+        m = re.search(r".*salt.*", key, re.I)
+        if m:
+            return val
+    
+    if is_payu:
+        # heuristic based identification of payu call
+        for key, val in post_dict.iteritems():
+            if not "http" in val:
+                continue # assume some surl or curl exists in the val
+            
+            # or if param value matches 8 character 
+            m = re.findall(r"\b[a-zA-Z0-9]{8}\b", val)
+
+            # multiple are misleading, exact 1 is good (chnage if required)
+            if len(m) == 1:
+                for i in xrange(len(m)):
+                    n = re.findall(r"\b[0-9]{8}\b",m[i])
+                    p = re.findall(r"\b[a-z]{8}\b",m[i])
+                    q = re.findall(r"\b[A-Z]{8}\b",m[i])
+                    s = re.findall(r"\b[A-Z0-9]{8}\b",m[i])
+                    t = re.findall(r"\b[a-z0-9]{8}\b",m[i])
+                    if len(n) + len(p) + len(q) + len(s) + len(t) == 0:
+                        signals.status_message.send(message=url + " --- salt -- in the request body---")
+                        return m
+
+
+
+    return False
 
 def is_keypress(k):
     """
@@ -154,14 +271,23 @@ if urwid.util.detected_encoding:
     SYMBOL_REPLAY = u"\u21ba"
     SYMBOL_RETURN = u"\u2190"
     SYMBOL_MARK = u"\u25cf"
+    SYMBOL_AUTHORIZATION = u"\u25cf"
+    SYMBOL_AUTHENTICATION = u"\u25cf"
+    SYMBOL_PAYU_SALT_LEAK = u"\u25cf"
+    SYMBOL_OTP_LEAK = u"\u25cf"
 else:
     SYMBOL_REPLAY = u"[r]"
     SYMBOL_RETURN = u"<-"
     SYMBOL_MARK = "[m]"
+    SYMBOL_AUTHORIZATION = "[ar]"
+    SYMBOL_AUTHENTICATION = "[an]"
+    SYMBOL_PAYU_SALT_LEAK = "[salt]"
+    SYMBOL_OTP_LEAK = "[otp]"
 
 
 def raw_format_flow(f, focus, extended):
     f = dict(f)
+
     pile = []
     req = []
     if extended:
@@ -175,8 +301,11 @@ def raw_format_flow(f, focus, extended):
         req.append(fcol(">>" if focus else "  ", "focus"))
 
     if f["marked"]:
-        req.append(fcol(SYMBOL_MARK, "mark"))
+        req.append(fcol(SYMBOL_MARK, "focus"))
 
+    test_result_color = ["text", "code_200", "code_500", "warn"]
+    
+   
     if f["req_is_replay"]:
         req.append(fcol(SYMBOL_REPLAY, "replay"))
     req.append(fcol(f["req_method"], "method"))
@@ -215,6 +344,7 @@ def raw_format_flow(f, focus, extended):
         ccol = codes.get(f["resp_code"] // 100, "code_other")
         resp.append(fcol(SYMBOL_RETURN, ccol))
         if f["resp_is_replay"]:
+            print("adding replay symbol")
             resp.append(fcol(SYMBOL_REPLAY, "replay"))
         resp.append(fcol(f["resp_code"], ccol))
         if extended:
@@ -228,6 +358,13 @@ def raw_format_flow(f, focus, extended):
             resp.append(fcol(f["resp_ctype"], rc))
         resp.append(fcol(f["resp_clen"], rc))
         resp.append(fcol(f["roundtrip"], rc))
+
+        resp.append(fcol(SYMBOL_AUTHENTICATION, test_result_color[f["authentication"]]))
+        resp.append(fcol(SYMBOL_AUTHORIZATION, test_result_color[f["authorization"]]))
+        resp.append(fcol(SYMBOL_PAYU_SALT_LEAK, test_result_color[f["payu_salt_leak"]]))
+        resp.append(fcol(SYMBOL_OTP_LEAK, test_result_color[f["otp_leak"]]))
+
+            
 
     elif f["err_msg"]:
         resp.append(fcol(SYMBOL_RETURN, "error"))
@@ -456,6 +593,12 @@ def format_flow(f, focus, extended=False, hostheader=False):
         err_msg = f.error.msg if f.error else None,
 
         marked = f.marked,
+
+        authorization = f.authorization,
+        authentication = f.authentication,
+        payu_salt_leak = f.payu_salt_leak,
+        otp_leak = f.otp_leak,
+
     )
     if f.response:
         if f.response.raw_content:

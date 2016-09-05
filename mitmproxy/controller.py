@@ -11,7 +11,7 @@ from mitmproxy import options
 from . import ctx as mitmproxy_ctx
 from netlib import basethread
 from . import exceptions
-
+import time
 
 Events = frozenset([
     "clientconnect",
@@ -175,15 +175,17 @@ class Channel(object):
             exceptions.Kill: All connections should be closed immediately.
         """
         m.reply = Reply(m)
+        
         self.q.put((mtype, m))
         while not self.should_exit.is_set():
             try:
-                # The timeout is here so we can handle a should_exit event.
+           # The timeout is here so we can handle a should_exit event.
                 g = m.reply.q.get(timeout=0.5)
             except queue.Empty:  # pragma: no cover
                 continue
             if g == exceptions.Kill:
                 raise exceptions.Kill()
+        
             return g
         m.reply._state = "committed"  # suppress error message in __del__
         raise exceptions.Kill()
@@ -256,6 +258,11 @@ class Reply(object):
 
         self._state = "unhandled"  # "unhandled" -> "handled" -> "taken" -> "committed"
         self.value = NO_REPLY  # holds the reply value. May change before things are actually commited.
+        self.arr = []
+
+    def __str__(self):
+        ret = [self.q.qsize(), self.arr]
+        return str(ret)
 
     @property
     def state(self):
@@ -303,6 +310,7 @@ class Reply(object):
         if not self.has_message:
             raise exceptions.ControlException("There is no reply message.")
         self._state = "committed"
+        self.arr.append(self.value)
         self.q.put(self.value)
 
     def ack(self, force=False):
