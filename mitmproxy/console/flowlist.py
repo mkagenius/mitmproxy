@@ -219,7 +219,7 @@ class ConnectionItem(urwid.WidgetWrap):
         if f.request.content:
             post_str = f.request.content
             post_dict = dict(urlparse.parse_qsl(post_str))
-            found_salt = common.salt_leakage(post_dict)
+            found_salt = common.salt_leakage(post_dict, f.request.url)
 
         if f.response.content:
             found_salt = common.salt_leakage_in_response(f.response.content)
@@ -378,6 +378,10 @@ class ConnectionItem(urwid.WidgetWrap):
                 self.state.disable_marked_filter()
             else:
                 self.state.enable_marked_filter()
+            signals.flowlist_change.send(self)
+        elif key == "N":
+            
+            self.state.set_view_filter("!(.js) & !(.css) & !(.ttf) & !(.png) & !(.svg) & !(gstatic) & !(.ico) & !(.jpg) & !(.jpeg) & !(.woff) & !(.woff2) & !(fbcdn) & !(google) & !(facebook)")
             signals.flowlist_change.send(self)
         elif key == "r":
             r = self.master.replay_request(self.flow)

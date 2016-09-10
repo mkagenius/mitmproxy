@@ -182,6 +182,45 @@ class ConsoleState(flow.State):
 
         self.mark_filter = False
 
+    def enable_noise_filter(self):
+        marked_flows = [f for f in self.flows if f.marked]
+        if not marked_flows:
+            return
+
+        marked_filter = "~%s" % FMarked.code
+
+        # Save Focus
+        last_focus, _ = self.get_focus()
+        nearest_marked = self.get_nearest_matching_flow(last_focus, marked_filter)
+
+        self.last_filter = self.filter_txt
+        self.set_view_filter(marked_filter)
+
+        # Restore Focus
+        if last_focus.marked:
+            self.set_focus_flow(last_focus)
+        else:
+            self.set_focus_flow(nearest_marked)
+
+        self.mark_filter = True
+
+    def disable_marked_filter(self):
+        marked_filter = "~%s" % FMarked.code
+
+        # Save Focus
+        last_focus, _ = self.get_focus()
+        nearest_marked = self.get_nearest_matching_flow(last_focus, marked_filter)
+
+        self.set_view_filter(self.last_filter)
+        self.last_filter = ""
+
+        # Restore Focus
+        if last_focus.marked:
+            self.set_focus_flow(last_focus)
+        else:
+            self.set_focus_flow(nearest_marked)
+
+        self.mark_filter = False
     def clear(self):
         marked_flows = [f for f in self.view if f.marked]
         super(ConsoleState, self).clear()
