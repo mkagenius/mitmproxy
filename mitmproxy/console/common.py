@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import, print_function, division
 
 import os
@@ -580,8 +582,98 @@ def export_to_clip_or_file(key, scope, flow, writer):
 flowcache = utils.LRUCache(800)
 
 
-def format_flow(f, focus, extended=False, hostheader=False):
+def raw_format_flow(f):
+    f = dict(f)
+    pile = []
+    req = []
+    if f["extended"]:
+        req.append(
+            fcol(
+                human.format_timestamp(f["req_timestamp"]),
+                "highlight"
+            )
+        )
+    else:
+        req.append(fcol(">>" if f["focus"] else "  ", "focus"))
+
+    if f["marked"]:
+        req.append(fcol(SYMBOL_MARK, "mark"))
+
+    if f["req_is_replay"]:
+        req.append(fcol(SYMBOL_REPLAY, "replay"))
+    req.append(fcol(f["req_method"], "method"))
+
+    preamble = sum(i[1] for i in req) + len(req) - 1
+
+    if f["intercepted"] and not f["acked"]:
+        uc = "intercept"
+    elif "resp_code" in f or "err_msg" in f:
+        uc = "text"
+    else:
+        uc = "title"
+
+    url = f["req_url"]
+
+    if f["max_url_len"] and len(url) > f["max_url_len"]:
+        url = url[:f["max_url_len"]] + "…"
+
+    if f["req_http_version"] not in ("HTTP/1.0", "HTTP/1.1"):
+        url += " " + f["req_http_version"]
+    req.append(
+        urwid.Text([(uc, url)])
+    )
+
+    pile.append(urwid.Columns(req, dividechars=1))
+
+    resp = []
+    resp.append(
+        ("fixed", preamble, urwid.Text(""))
+    )
+
+    if "resp_code" in f:
+        codes = {
+            2: "code_200",
+            3: "code_300",
+            4: "code_400",
+            5: "code_500",
+        }
+        ccol = codes.get(f["resp_code"] // 100, "code_other")
+        resp.append(fcol(SYMBOL_RETURN, ccol))
+        if f["resp_is_replay"]:
+            resp.append(fcol(SYMBOL_REPLAY, "replay"))
+        resp.append(fcol(f["resp_code"], ccol))
+        if f["extended"]:
+            resp.append(fcol(f["resp_reason"], ccol))
+        if f["intercepted"] and f["resp_code"] and not f["acked"]:
+            rc = "intercept"
+        else:
+            rc = "text"
+
+        if f["resp_ctype"]:
+            resp.append(fcol(f["resp_ctype"], rc))
+        resp.append(fcol(f["resp_clen"], rc))
+        resp.append(fcol(f["roundtrip"], rc))
+
+    elif f["err_msg"]:
+        resp.append(fcol(SYMBOL_RETURN, "error"))
+        resp.append(
+            urwid.Text([
+                (
+                    "error",
+                    f["err_msg"]
+                )
+            ])
+        )
+    pile.append(urwid.Columns(resp, dividechars=1))
+    return urwid.Pile(pile)
+
+
+def format_flow(f, focus, extended=False, hostheader=False, max_url_len=False):
     d = dict(
+        focus=focus,
+        extended=extended,
+        max_url_len=max_url_len,
+
         intercepted = f.intercepted,
         acked = f.reply.state == "committed",
 
@@ -625,7 +717,5 @@ def format_flow(f, focus, extended=False, hostheader=False):
             d["resp_ctype"] = t.split(";")[0]
         else:
             d["resp_ctype"] = ""
-    return flowcache.get(
-        raw_format_flow,
-        tuple(sorted(d.items())), focus, extended
-    )
+
+    return flowcache.get(raw_format_flow, tuple(sorted(d.items())))

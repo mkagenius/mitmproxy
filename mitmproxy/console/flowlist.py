@@ -120,10 +120,12 @@ class ConnectionItem(urwid.WidgetWrap):
         urwid.WidgetWrap.__init__(self, w)
 
     def get_text(self):
+        cols, _ = self.master.ui.get_cols_rows()
         return common.format_flow(
             self.flow,
             self.f,
-            hostheader = self.master.options.showhost,
+            hostheader=self.master.options.showhost,
+            max_url_len=cols,
         )
 
     def selectable(self):
@@ -150,22 +152,22 @@ class ConnectionItem(urwid.WidgetWrap):
         if k == "a":
             self.master.start_server_playback(
                 [i.copy() for i in self.master.state.view],
-                self.master.options.kill, self.master.options.rheaders,
-                False, self.master.options.nopop,
-                self.master.options.replay_ignore_params,
-                self.master.options.replay_ignore_content,
-                self.master.options.replay_ignore_payload_params,
-                self.master.options.replay_ignore_host
+                self.master.options.replay_kill_extra, self.master.options.server_replay_use_headers,
+                False, self.master.options.server_replay_nopop,
+                self.master.options.server_replay_ignore_params,
+                self.master.options.server_replay_ignore_content,
+                self.master.options.server_replay_ignore_payload_params,
+                self.master.options.server_replay_ignore_host
             )
         elif k == "t":
             self.master.start_server_playback(
                 [self.flow.copy()],
-                self.master.options.kill, self.master.options.rheaders,
-                False, self.master.options.nopop,
-                self.master.options.replay_ignore_params,
-                self.master.options.replay_ignore_content,
-                self.master.options.replay_ignore_payload_params,
-                self.master.options.replay_ignore_host
+                self.master.options.replay_kill_extra, self.master.options.server_replay_use_headers,
+                False, self.master.options.server_replay_nopop,
+                self.master.options.server_replay_ignore_params,
+                self.master.options.server_replay_ignore_content,
+                self.master.options.server_replay_ignore_payload_params,
+                self.master.options.server_replay_ignore_host
             )
         else:
             signals.status_prompt_path.send(

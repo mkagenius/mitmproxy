@@ -46,11 +46,11 @@ class DumpMaster(flow.FlowMaster):
         self.addons.add(options, dumper.Dumper())
         # This line is just for type hinting
         self.options = self.options  # type: Options
-        self.replay_ignore_params = options.replay_ignore_params
-        self.replay_ignore_content = options.replay_ignore_content
-        self.replay_ignore_host = options.replay_ignore_host
+        self.server_replay_ignore_params = options.server_replay_ignore_params
+        self.server_replay_ignore_content = options.server_replay_ignore_content
+        self.server_replay_ignore_host = options.server_replay_ignore_host
         self.refresh_server_playback = options.refresh_server_playback
-        self.replay_ignore_payload_params = options.replay_ignore_payload_params
+        self.server_replay_ignore_payload_params = options.server_replay_ignore_payload_params
 
         self.set_stream_large_bodies(options.stream_large_bodies)
 
@@ -58,18 +58,6 @@ class DumpMaster(flow.FlowMaster):
             print("ALPN support missing (OpenSSL 1.0.2+ required)!\n"
                   "HTTP/2 is disabled. Use --no-http2 to silence this warning.",
                   file=sys.stderr)
-
-        if options.server_replay:
-            self.start_server_playback(
-                self._readflow(options.server_replay),
-                options.kill, options.rheaders,
-                not options.keepserving,
-                options.nopop,
-                options.replay_ignore_params,
-                options.replay_ignore_content,
-                options.replay_ignore_payload_params,
-                options.replay_ignore_host
-            )
 
         if options.client_replay:
             self.start_client_playback(

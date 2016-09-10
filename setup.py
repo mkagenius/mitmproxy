@@ -66,7 +66,7 @@ setup(
         "certifi>=2015.11.20.1",  # no semver here - this should always be on the last release!
         "configargparse>=0.10, <0.11",
         "construct>=2.5.2, <2.6",
-        "cryptography>=1.3, <1.5",
+        "cryptography>=1.3, <1.6",
         "cssutils>=1.0.1, <1.1",
         "Flask>=0.10.1, <0.12",
         "h2>=2.4.1, <3",
@@ -85,7 +85,7 @@ setup(
         "tornado>=4.3, <4.5",
         "urwid>=1.3.1, <1.4",
         "watchdog>=0.8.3, <0.9",
-        "brotlipy>=0.3.0, <0.5",
+        "brotlipy>=0.5.1, <0.6",
     ],
     extras_require={
         ':sys_platform == "win32"': [
@@ -107,6 +107,7 @@ setup(
             "pytest-cov>=2.2.1, <3",
             "pytest-timeout>=1.0.0, <2",
             "pytest-xdist>=1.14, <2",
+            "pytest-faulthandler>=1.3.0, <2",
             "sphinx>=1.3.5, <1.5",
             "sphinx-autobuild>=0.5.2, <0.7",
             "sphinxcontrib-documentedlist>=0.4.0, <0.5",

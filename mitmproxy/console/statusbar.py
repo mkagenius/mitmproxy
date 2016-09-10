@@ -147,14 +147,12 @@ class StatusBar(urwid.WidgetWrap):
         if self.master.client_playback:
             r.append("[")
             r.append(("heading_key", "cplayback"))
-            r.append(":%s to go]" % self.master.client_playback.count())
-        if self.master.server_playback:
+            r.append(":%s]" % self.master.client_playback.count())
+        if self.master.options.server_replay:
             r.append("[")
             r.append(("heading_key", "splayback"))
-            if self.master.options.nopop:
-                r.append(":%s in file]" % self.master.server_playback.count())
-            else:
-                r.append(":%s to go]" % self.master.server_playback.count())
+            a = self.master.addons.get("serverplayback")
+            r.append(":%s]" % a.count())
         if self.master.options.ignore_hosts:
             r.append("[")
             r.append(("heading_key", "I"))
@@ -193,7 +191,7 @@ class StatusBar(urwid.WidgetWrap):
             opts.append("showhost")
         if not self.master.options.refresh_server_playback:
             opts.append("norefresh")
-        if self.master.options.kill:
+        if self.master.options.replay_kill_extra:
             opts.append("killextra")
         if self.master.options.no_upstream_cert:
             opts.append("no-upstream-cert")

@@ -36,6 +36,7 @@ class RequestReplayThread(basethread.BaseThread):
         
         r = self.flow.request
         first_line_format_backup = r.first_line_format
+        server = None
         try:
             self.flow.response = None
 
@@ -117,5 +118,5 @@ class RequestReplayThread(basethread.BaseThread):
             self.channel.tell("log", Log(traceback.format_exc(), "error"))
         finally:
             r.first_line_format = first_line_format_backup
-
-        
+            if server:
+                server.finish()
