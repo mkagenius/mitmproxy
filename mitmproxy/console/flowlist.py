@@ -292,10 +292,46 @@ class ConnectionItem(urwid.WidgetWrap):
         backup_flow = f.get_state()["backup"]
         if f.response.content == backup_flow["response"]["content"]:
             return 2 # auth broken
-        if f.response.content != backup_flow["response"]["content"]:
+        else:
             return 1
 
         return 0
+
+    def is_different_data(self, new_resp, old_resp):
+        content_type = ""
+        if "content-type" in new_resp.headers:
+            content_type = new_resp.headers["content-type"]
+        elif "Content-Type" in new_resp.headers:
+            content_type = new_resp.headers["Content-Type"]
+
+        if "json" in content_type:
+            old_resp_dict = common.flatten(old_resp["content"])
+            new_resp_dict = common.flatten(new_resp.content)
+
+            keys_old = old_resp_dict.keys()
+            keys_new = new_resp_dict.keys()
+
+            cnt = 0
+            match_cnt = 0
+            value_match_cnt = 0
+            for k in keys_old:
+                cnt += 1
+                if k in keys_new:
+                    match_cnt+=1
+                    if old_resp_dict[k] == new_resp_dict[k]:
+                        value_match_cnt += 1
+
+            if value_match_cnt == match_cnt:
+                return False # even same values
+
+            if match_cnt / (cnt * 1.0) * 100.0 > 90.0 :
+                return True # different values, almost same keys
+
+            return False
+        else:
+            if "error" in new_resp.content.lower(): # anything better than error keyword?
+                return False # if error happened then its not a data leak
+            return True # if error not happened then its a data leak
 
     def gather_authorization_result(self, f):
         if "backup" not in f.get_state():
@@ -305,10 +341,15 @@ class ConnectionItem(urwid.WidgetWrap):
 
         ## TODO test if response contains data different than this but some user data
         if f.response.status_code >= 200 and f.response.status_code < 300:
+            
+            
+
             if f.response.content == backup_flow["response"]["content"]:
-                return 1 # auth broken
-            if f.response.content != backup_flow["response"]["content"]:
+                return 1 # authorization is done via cookies or something
+            elif self.is_different_data(f.response, backup_flow["response"]): # same type of data content came back, but not exact
                 return 2
+            else:
+                return 1
         else:
             return 1
 
