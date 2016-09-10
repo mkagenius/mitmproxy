@@ -93,13 +93,13 @@ def resp_body_contains_otp(body_content, content_type):
                         
                         if otp_regex.match(str(v)) or "sms" in k.lower() or "otp" in k.lower(): 
                                 signals.status_message.send(message="[otp] OTP? %s=%s" % (k,v))
-                                return 3
+                                return 2
 
         except ValueError:
                 signals.status_message.send(message="[otp]Content type was: %s but no json could be decoded." % content_type)
-                return 2
+                return 1
 
-        return 2
+        return 1
 
 def salt_leakage_in_response(content):
     # ,"salt":"luYFtcEf",
@@ -107,7 +107,7 @@ def salt_leakage_in_response(content):
     
 
     if len(m) > 0:
-        print(m,"---salt in response")
+        
         m = m[0].split(":")
         if len(m) > 1:
             m = m[1]
@@ -126,11 +126,11 @@ def salt_leakage_in_response(content):
 
 def salt_leakage(post_dict, url):
     
-    print("inside salt leakage check")
+    
     is_payu = len(re.findall(r"payu", url, re.I)) > 0
 
     for key, val in post_dict.iteritems():
-        print(key,val)  
+          
         # param key matches "salt"
         m = re.search(r".*salt.*", key, re.I)
         if m:
@@ -344,7 +344,6 @@ def raw_format_flow(f, focus, extended):
         ccol = codes.get(f["resp_code"] // 100, "code_other")
         resp.append(fcol(SYMBOL_RETURN, ccol))
         if f["resp_is_replay"]:
-            print("adding replay symbol")
             resp.append(fcol(SYMBOL_REPLAY, "replay"))
         resp.append(fcol(f["resp_code"], ccol))
         if extended:

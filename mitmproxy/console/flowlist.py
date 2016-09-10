@@ -420,6 +420,10 @@ class ConnectionItem(urwid.WidgetWrap):
             else:
                 self.state.enable_marked_filter()
             signals.flowlist_change.send(self)
+        elif key == "N":
+            
+            self.state.set_view_filter("!(.js) & !(.css) & !(.ttf) & !(.png) & !(.svg) & !(gstatic) & !(.ico) & !(.jpg) & !(.jpeg) & !(.woff) & !(.woff2) & !(fbcdn) & !(google) & !(facebook)")
+            signals.flowlist_change.send(self)
         elif key == "r":
             r = self.master.replay_request(self.flow)
             if r:
