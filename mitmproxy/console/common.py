@@ -72,6 +72,8 @@ def process_list(k,v):
 
 def flatten(json):
         d = {}
+        if type(json) == 'str':
+            return d
         for k,v in json.iteritems():
                 if type(v) == dict:
                         d.update(flatten(v))
