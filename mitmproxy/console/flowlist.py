@@ -205,7 +205,9 @@ class ConnectionItem(urwid.WidgetWrap):
 
     def test_authentication(self, f):
         if not f.response:
-            return 0
+            if "backup" not in f.get_state() or "response" not in f.get_state()["backup"]:
+                return 0
+
         #self.flow.backup()
         prev_response = f.response
         signals.status_message.send(message="Testing authentication.")
@@ -253,9 +255,24 @@ class ConnectionItem(urwid.WidgetWrap):
 
         prev = 0
         for i in ss:
-            span_tup = i.span()
-            ret += url[prev:span_tup[0]]
-            ret += str(int(url[span_tup[0]:span_tup[1]]) - 1)
+            
+            if i.group(1):
+                # phone num 
+                # Todo: this is regex is not good enough to detect phone number
+                span_tup = i.span(1)
+                ret += url[prev:span_tup[0]]
+                ret += str(7259361414)
+            if i.group(2):
+                # email
+                span_tup = i.span(2)
+                ret += url[prev:span_tup[0]]
+                ret += str("mkagenius@gmail.com")
+            if i.group(3):
+                # user id
+                span_tup = i.span(3)  
+                ret += url[prev:span_tup[0]]    
+                ret += str(int(url[span_tup[0]:span_tup[1]]) - 1)
+                
             prev = span_tup[1]
 
         ret += url[prev:]
@@ -265,24 +282,25 @@ class ConnectionItem(urwid.WidgetWrap):
 
     def test_authorization(self, f):
         if not f.response:
-            return 0
+            if "backup" not in f.get_state() or "response" not in f.get_state()["backup"]:
+                return 0
         #self.flow.backup()
         prev_response = f.response
         signals.status_message.send(message="Testing authorization.")
 
         f.request.headers = self.remove_auth(f.request.headers)
 
-        re_phone_or_email_or_userid = re.compile(r'(?:\b\d{10}\b)|(?:[^@\/=\?\ ]+(@|%40)[^@\/=\?]+\.[^@\/=\?]+)|(?:\b\d{4,8}\b)')
+        # re_phone_or_email_or_userid = re.compile(r'(?:\b\d{10}\b)|(?:[^@\/=\?\ ]+(@|%40)[^@\/=\?]+\.[^@\/=\?]+)|(?:[\/=](\d{4,8})([\?\/&]|$))')
 
-        # email replaced with some test account email
-        re_email = re.compile(r'[^@\/=\?]+(@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+')
+        # # email replaced with some test account email
+        # re_email = re.compile(r'[^@\/=\?]+(@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+')
 
-        # phone replaced with some test account phone
-        re_phone = re.compile(r'\b\d{10}\b')
+        # # phone replaced with some test account phone
+        # re_phone = re.compile(r'\b\d{10}\b')
 
-        # user id / card id / other id decreased by 1
-        re_userid = re.compile(r'\b\d{4,8}\b')
-        f.request.url = self.edit_url(re_userid, f.request.url)
+        # # user id / card id / other id decreased by 1
+        # re_userid = re.compile(r'[\/=](\d{4,8})([\?\/&]|$)') #re.compile(r'\b\d{4,8}\b')
+        f.request.url = self.edit_url(common.re_phone_or_email_or_userid, f.request.url)
         signals.status_message.send(message="Edited url: " + f.request.url)
         r = self.master.replay_request(f)
         return 3
@@ -342,7 +360,7 @@ class ConnectionItem(urwid.WidgetWrap):
         backup_flow = f.get_state()["backup"]
 
         ## TODO test if response contains data different than this but some user data
-        if f.response.status_code >= 200 and f.response.status_code < 300:
+        if f.response and f.response.status_code >= 200 and f.response.status_code < 300:
             
             
 
