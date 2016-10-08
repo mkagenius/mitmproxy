@@ -14,7 +14,7 @@ import tornado.web
 from io import BytesIO
 from mitmproxy.flow import FlowWriter, FlowReader
 
-from mitmproxy import filt
+from mitmproxy import flowfilter
 from mitmproxy import models
 from mitmproxy import contentviews
 from netlib import version
@@ -116,7 +116,7 @@ class RequestHandler(BasicAuth, tornado.web.RequestHandler):
     def json(self):
         if not self.request.headers.get("Content-Type").startswith("application/json"):
             return None
-        return json.loads(self.request.body)
+        return json.loads(self.request.body.decode())
 
     @property
     def state(self):
@@ -151,11 +151,11 @@ class IndexHandler(RequestHandler):
         self.render("index.html")
 
 
-class FiltHelp(RequestHandler):
+class FilterHelp(RequestHandler):
 
     def get(self):
         self.write(dict(
-            commands=filt.help
+            commands=flowfilter.help
         ))
 
 
@@ -434,7 +434,7 @@ class Application(tornado.web.Application):
         self.master = master
         handlers = [
             (r"/", IndexHandler),
-            (r"/filter-help", FiltHelp),
+            (r"/filter-help", FilterHelp),
             (r"/updates", ClientConnection),
             (r"/events", Events),
             (r"/flows", Flows),

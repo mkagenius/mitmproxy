@@ -60,7 +60,7 @@ class CommonMixin:
         # Disconnect error
         l.request.path = "/p/305:d0"
         rt = self.master.replay_request(l, block=True)
-        assert not rt
+        assert rt
         if isinstance(self, tservers.HTTPUpstreamProxyTest):
             assert l.response.status_code == 502
         else:
@@ -72,7 +72,7 @@ class CommonMixin:
         # In upstream mode with ssl, the replay will fail as we cannot establish
         # SSL with the upstream proxy.
         rt = self.master.replay_request(l, block=True)
-        assert not rt
+        assert rt
         if isinstance(self, tservers.HTTPUpstreamProxyTest):
             assert l.response.status_code == 502
         else:
@@ -101,10 +101,16 @@ class CommonMixin:
         if not self.ssl:
             return
 
+        if getattr(self, 'reverse', False):
+            # In reverse proxy mode, we expect to use the upstream host as our SNI value
+            expected_sni = "127.0.0.1"
+        else:
+            expected_sni = "testserver.com"
+
         f = self.pathod("304", sni="testserver.com")
         assert f.status_code == 304
         log = self.server.last_log()
-        assert log["request"]["sni"] == "testserver.com"
+        assert log["request"]["sni"] == expected_sni
 
 
 class TcpMixin:
@@ -298,7 +304,7 @@ class TestHTTP(tservers.HTTPProxyTest, CommonMixin, AppMixin):
         s = script.Script(
             tutils.test_data.path("data/addonscripts/stream_modify.py")
         )
-        self.master.addons.add(self.master.options, s)
+        self.master.addons.add(s)
         d = self.pathod('200:b"foo"')
         assert d.content == b"bar"
         self.master.addons.remove(s)
@@ -572,7 +578,7 @@ class TestTransparent(tservers.TransparentProxyTest, CommonMixin, TcpMixin):
         s = script.Script(
             tutils.test_data.path("data/addonscripts/tcp_stream_modify.py")
         )
-        self.master.addons.add(self.master.options, s)
+        self.master.addons.add(s)
         self._tcpproxy_on()
         d = self.pathod('200:b"foo"')
         self._tcpproxy_off()
@@ -801,8 +807,7 @@ class TestStreamRequest(tservers.HTTPProxyTest):
 class MasterFakeResponse(tservers.TestMaster):
     @controller.handler
     def request(self, f):
-        resp = HTTPResponse.wrap(netlib.tutils.tresp())
-        f.reply.send(resp)
+        f.response = HTTPResponse.wrap(netlib.tutils.tresp())
 
 
 class TestFakeResponse(tservers.HTTPProxyTest):
@@ -883,7 +888,7 @@ class MasterIncomplete(tservers.TestMaster):
     def request(self, f):
         resp = HTTPResponse.wrap(netlib.tutils.tresp())
         resp.content = None
-        f.reply.send(resp)
+        f.response = resp
 
 
 class TestIncompleteResponse(tservers.HTTPProxyTest):

@@ -22,7 +22,7 @@ from mitmproxy import contentviews
 from mitmproxy import controller
 from mitmproxy import exceptions
 from mitmproxy import flow
-from mitmproxy import script
+from mitmproxy import flowfilter
 from mitmproxy import utils
 import mitmproxy.options
 from mitmproxy.console import flowlist
@@ -35,7 +35,7 @@ from mitmproxy.console import palettes
 from mitmproxy.console import signals
 from mitmproxy.console import statusbar
 from mitmproxy.console import window
-from mitmproxy.filt import FMarked
+from mitmproxy.flowfilter import FMarked
 from netlib import tcp, strutils
 
 EVENTLOG_SIZE = 500
@@ -67,11 +67,13 @@ class ConsoleState(flow.State):
 
     def add_flow(self, f):
         super(ConsoleState, self).add_flow(f)
+        signals.flowlist_change.send(self)
         self.update_focus()
         return f
 
     def update_flow(self, f):
         super(ConsoleState, self).update_flow(f)
+        signals.flowlist_change.send(self)
         self.update_focus()
         return f
 
@@ -124,7 +126,7 @@ class ConsoleState(flow.State):
         self.set_focus(self.focus)
         return ret
 
-    def get_nearest_matching_flow(self, flow, filt):
+    def get_nearest_matching_flow(self, flow, flt):
         fidx = self.view.index(flow)
         dist = 1
 
@@ -133,9 +135,9 @@ class ConsoleState(flow.State):
             fprev, _ = self.get_from_pos(fidx - dist)
             fnext, _ = self.get_from_pos(fidx + dist)
 
-            if fprev and fprev.match(filt):
+            if fprev and flowfilter.match(flt, fprev):
                 return fprev
-            elif fnext and fnext.match(filt):
+            elif fnext and flowfilter.match(flt, fnext):
                 return fnext
 
             dist += 1
@@ -245,9 +247,6 @@ class ConsoleMaster(flow.FlowMaster):
         self.logbuffer = urwid.SimpleListWalker([])
         self.follow = options.follow
 
-        if options.client_replay:
-            self.client_playback_path(options.client_replay)
-
         self.view_stack = []
 
         if options.app:
@@ -258,7 +257,7 @@ class ConsoleMaster(flow.FlowMaster):
         signals.replace_view_state.connect(self.sig_replace_view_state)
         signals.push_view_state.connect(self.sig_push_view_state)
         signals.sig_add_log.connect(self.sig_add_log)
-        self.addons.add(options, *builtins.default_addons())
+        self.addons.add(*builtins.default_addons())
 
     def __setattr__(self, name, value):
         self.__dict__[name] = value
@@ -329,39 +328,13 @@ class ConsoleMaster(flow.FlowMaster):
         self.loop.widget = window
         self.loop.draw_screen()
 
-    def _run_script_method(self, method, s, f):
-        status, val = s.run(method, f)
-        if val:
-            if status:
-                signals.add_log("Method %s return: %s" % (method, val), "debug")
-            else:
-                signals.add_log(
-                    "Method %s error: %s" %
-                    (method, val[1]), "error")
-
     def run_script_once(self, command, f):
-        if not command:
-            return
-        signals.add_log("Running script on flow: %s" % command, "debug")
-
+        sc = self.addons.get("scriptloader")
         try:
-            s = script.Script(command)
-            s.load()
-        except script.ScriptException as e:
-            signals.status_message.send(
-                message='Error loading "{}".'.format(command)
-            )
-            signals.add_log('Error loading "{}":\n{}'.format(command, e), "error")
-            return
-
-        if f.request:
-            self._run_script_method("request", s, f)
-        if f.response:
-            self._run_script_method("response", s, f)
-        if f.error:
-            self._run_script_method("error", s, f)
-        s.unload()
-        signals.flow_change.send(self, flow = f)
+            with self.handlecontext():
+                sc.run_once(command, [f])
+        except mitmproxy.exceptions.AddonError as e:
+            signals.add_log("Script error: %s" % e, "warn")
 
     def toggle_eventlog(self):
         self.options.eventlog = not self.options.eventlog
@@ -380,13 +353,6 @@ class ConsoleMaster(flow.FlowMaster):
             return flow.read_flows_from_paths(path)
         except exceptions.FlowReadException as e:
             signals.status_message.send(message=str(e))
-
-    def client_playback_path(self, path):
-        if not isinstance(path, list):
-            path = [path]
-        flows = self._readflows(path)
-        if flows:
-            self.start_client_playback(flows, False)
 
     def spawn_editor(self, data):
         text = not isinstance(data, bytes)
@@ -670,14 +636,6 @@ class ConsoleMaster(flow.FlowMaster):
     def edit_scripts(self, scripts):
         self.options.scripts = [x[0] for x in scripts]
 
-    def stop_client_playback_prompt(self, a):
-        if a != "n":
-            self.stop_client_playback()
-
-    def stop_server_playback_prompt(self, a):
-        if a != "n":
-            self.stop_server_playback()
-
     def quit(self, a):
         if a != "n":
             raise urwid.ExitMainLoop
@@ -712,14 +670,14 @@ class ConsoleMaster(flow.FlowMaster):
     def process_flow(self, f):
         should_intercept = any(
             [
-                self.state.intercept and f.match(self.state.intercept) and not f.request.is_replay,
+                self.state.intercept and flowfilter.match(self.state.intercept, f) and not f.request.is_replay,
                 f.intercepted,
             ]
         )
         if should_intercept:
             f.intercept(self)
         signals.flowlist_change.send(self)
-        signals.flow_change.send(self, flow = f)
+        signals.flow_change.send(self, flow=f)
 
     def clear_events(self):
         self.logbuffer[:] = []

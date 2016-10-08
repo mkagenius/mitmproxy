@@ -36,6 +36,7 @@ from __future__ import absolute_import, print_function, division
 import re
 import sys
 import functools
+import six
 
 from mitmproxy.models.http import HTTPFlow
 from mitmproxy.models.tcp import TCPFlow
@@ -244,6 +245,7 @@ class FHeadResponse(_Rex):
 class FBod(_Rex):
     code = "b"
     help = "Body"
+    flags = re.DOTALL
 
     @only(HTTPFlow, TCPFlow)
     def __call__(self, f):
@@ -264,6 +266,7 @@ class FBod(_Rex):
 class FBodRequest(_Rex):
     code = "bq"
     help = "Request body"
+    flags = re.DOTALL
 
     @only(HTTPFlow, TCPFlow)
     def __call__(self, f):
@@ -280,6 +283,7 @@ class FBodRequest(_Rex):
 class FBodResponse(_Rex):
     code = "bs"
     help = "Response body"
+    flags = re.DOTALL
 
     @only(HTTPFlow, TCPFlow)
     def __call__(self, f):
@@ -405,7 +409,7 @@ class FNot(_Token):
         return not self.itm(f)
 
 
-filt_unary = [
+filter_unary = [
     FAsset,
     FErr,
     FHTTP,
@@ -414,7 +418,7 @@ filt_unary = [
     FResp,
     FTCP,
 ]
-filt_rex = [
+filter_rex = [
     FBod,
     FBodRequest,
     FBodResponse,
@@ -430,7 +434,7 @@ filt_rex = [
     FSrc,
     FUrl,
 ]
-filt_int = [
+filter_int = [
     FCode
 ]
 
@@ -439,7 +443,7 @@ def _make():
     # Order is important - multi-char expressions need to come before narrow
     # ones.
     parts = []
-    for klass in filt_unary:
+    for klass in filter_unary:
         f = pp.Literal("~%s" % klass.code) + pp.WordEnd()
         f.setParseAction(klass.make)
         parts.append(f)
@@ -448,12 +452,12 @@ def _make():
     rex = pp.Word(simplerex) |\
         pp.QuotedString("\"", escChar='\\') |\
         pp.QuotedString("'", escChar='\\')
-    for klass in filt_rex:
+    for klass in filter_rex:
         f = pp.Literal("~%s" % klass.code) + pp.WordEnd() + rex.copy()
         f.setParseAction(klass.make)
         parts.append(f)
 
-    for klass in filt_int:
+    for klass in filter_int:
         f = pp.Literal("~%s" % klass.code) + pp.WordEnd() + pp.Word(pp.nums)
         f.setParseAction(klass.make)
         parts.append(f)
@@ -489,25 +493,42 @@ TFilter = Callable[[Flow], bool]
 def parse(s):
     # type: (str) -> TFilter
     try:
-        filt = bnf.parseString(s, parseAll=True)[0]
-        filt.pattern = s
-        return filt
+        flt = bnf.parseString(s, parseAll=True)[0]
+        flt.pattern = s
+        return flt
     except pp.ParseException:
         return None
     except ValueError:
         return None
 
 
+def match(flt, flow):
+    """
+        Matches a flow against a compiled filter expression.
+        Returns True if matched, False if not.
+
+        If flt is a string, it will be compiled as a filter expression.
+        If the expression is invalid, ValueError is raised.
+    """
+    if isinstance(flt, six.string_types):
+        flt = parse(flt)
+        if not flt:
+            raise ValueError("Invalid filter expression.")
+    if flt:
+        return flt(flow)
+    return True
+
+
 help = []
-for i in filt_unary:
+for i in filter_unary:
     help.append(
         ("~%s" % i.code, i.help)
     )
-for i in filt_rex:
+for i in filter_rex:
     help.append(
         ("~%s regex" % i.code, i.help)
     )
-for i in filt_int:
+for i in filter_int:
     help.append(
         ("~%s int" % i.code, i.help)
     )

@@ -1,39 +1,37 @@
 from __future__ import absolute_import, print_function, division
 
-import time
-import sys
-import traceback
-
 import h2.exceptions
+import netlib.exceptions
 import six
-
+import sys
+import time
+import traceback
 from mitmproxy import exceptions
 from mitmproxy import models
 from mitmproxy.protocol import base
-
-import netlib.exceptions
+from mitmproxy.protocol import websockets as pwebsockets
 from netlib import http
 from netlib import tcp
 from netlib import websockets
 
 
 class _HttpTransmissionLayer(base.Layer):
-
-    def read_request(self):
+    def read_request_headers(self):
         raise NotImplementedError()
 
     def read_request_body(self, request):
         raise NotImplementedError()
 
+    def read_request(self):
+        request = self.read_request_headers()
+        request.data.content = b"".join(
+            self.read_request_body(request)
+        )
+        request.timestamp_end = time.time()
+        return request
+
     def send_request(self, request):
         raise NotImplementedError()
-
-    def read_response(self, request):
-        response = self.read_response_headers()
-        response.data.content = b"".join(
-            self.read_response_body(request, response)
-        )
-        return response
 
     def read_response_headers(self):
         raise NotImplementedError()
@@ -41,6 +39,13 @@ class _HttpTransmissionLayer(base.Layer):
     def read_response_body(self, request, response):
         raise NotImplementedError()
         yield "this is a generator"  # pragma: no cover
+
+    def read_response(self, request):
+        response = self.read_response_headers()
+        response.data.content = b"".join(
+            self.read_response_body(request, response)
+        )
+        return response
 
     def send_response(self, response):
         if response.data.content is None:
@@ -142,8 +147,9 @@ class HttpLayer(base.Layer):
             self.__initial_server_tls = self.server_tls
             self.__initial_server_conn = self.server_conn
         while True:
+            flow = models.HTTPFlow(self.client_conn, self.server_conn, live=self)
             try:
-                request = self.get_request_from_client()
+                request = self.get_request_from_client(flow)
                 # Make sure that the incoming request matches our expectations
                 self.validate_request(request)
             except netlib.exceptions.HttpReadDisconnect:
@@ -153,12 +159,13 @@ class HttpLayer(base.Layer):
                 # We optimistically guess there might be an HTTP client on the
                 # other end
                 self.send_error_response(400, repr(e))
-                self.log(
-                    "request",
-                    "warn",
-                    "HTTP protocol error in client request: %s" % e
+                six.reraise(
+                    exceptions.ProtocolException,
+                    exceptions.ProtocolException(
+                        "HTTP protocol error in client request: {}".format(e)
+                    ),
+                    sys.exc_info()[2]
                 )
-                return
 
             self.log("request", "debug", [repr(request)])
 
@@ -169,7 +176,6 @@ class HttpLayer(base.Layer):
             if not (self.http_authenticated or self.authenticate(request)):
                 return
 
-            flow = models.HTTPFlow(self.client_conn, self.server_conn, live=self)
             flow.request = request
 
             try:
@@ -185,6 +191,13 @@ class HttpLayer(base.Layer):
                 self.channel.ask("error", flow)
                 return
 
+            # update host header in reverse proxy mode
+            if self.config.options.mode == "reverse":
+                if six.PY2:
+                    flow.request.headers["Host"] = self.config.upstream_server.address.host.encode()
+                else:
+                    flow.request.headers["Host"] = self.config.upstream_server.address.host
+
             # set upstream auth
             if self.mode == "upstream" and self.config.upstream_auth is not None:
                 flow.request.headers["Proxy-Authorization"] = self.config.upstream_auth
@@ -192,9 +205,9 @@ class HttpLayer(base.Layer):
 
             try:
                 if websockets.check_handshake(request.headers) and websockets.check_client_version(request.headers):
-                    # we only support RFC6455 with WebSockets version 13
-                    # allow inline scripts to manupulate the client handshake
-                    self.channel.ask("websockets_handshake", flow)
+                    # We only support RFC6455 with WebSockets version 13
+                    # allow inline scripts to manipulate the client handshake
+                    self.channel.ask("websocket_handshake", flow)
 
                 if not flow.response:
                     self.establish_server_connection(
@@ -206,22 +219,18 @@ class HttpLayer(base.Layer):
                 else:
                     # response was set by an inline script.
                     # we now need to emulate the responseheaders hook.
-                    flow = self.channel.ask("responseheaders", flow)
+                    self.channel.ask("responseheaders", flow)
 
                 self.log("response", "debug", [repr(flow.response)])
-                flow = self.channel.ask("response", flow)
+                self.channel.ask("response", flow)
                 self.send_response_to_client(flow)
 
                 if self.check_close_connection(flow):
                     return
 
                 # Handle 101 Switching Protocols
-                # It may be useful to pass additional args (such as the upgrade header)
-                # to next_layer in the future
                 if flow.response.status_code == 101:
-                    layer = self.ctx.next_layer(self, flow)
-                    layer()
-                    return
+                    return self.handle_101_switching_protocols(flow)
 
                 # Upstream Proxy Mode: Handle CONNECT
                 if flow.request.first_line_format == "authority" and flow.response.status_code == 200:
@@ -241,13 +250,16 @@ class HttpLayer(base.Layer):
                 if flow:
                     flow.live = False
 
-    def get_request_from_client(self):
+    def get_request_from_client(self, flow):
         request = self.read_request()
+        flow.request = request
+        self.channel.ask("requestheaders", flow)
         if request.headers.get("expect", "").lower() == "100-continue":
             # TODO: We may have to use send_response_headers for HTTP2 here.
             self.send_response(models.expect_continue_response)
             request.headers.pop("expect")
             request.body = b"".join(self.read_request_body(request))
+            request.timestamp_end = time.time()
         return request
 
     def send_error_response(self, code, message, headers=None):
@@ -327,7 +339,7 @@ class HttpLayer(base.Layer):
 
         # call the appropriate script hook - this is an opportunity for an
         # inline script to set flow.stream = True
-        flow = self.channel.ask("responseheaders", flow)
+        self.channel.ask("responseheaders", flow)
 
         if flow.response.stream:
             flow.response.data.content = None
@@ -360,11 +372,7 @@ class HttpLayer(base.Layer):
             if host_header:
                 flow.request.headers["host"] = host_header
             flow.request.scheme = "https" if self.__initial_server_tls else "http"
-
-        request_reply = self.channel.ask("request", flow)
-        if isinstance(request_reply, models.HTTPResponse):
-            flow.response = request_reply
-            return
+        self.channel.ask("request", flow)
 
     def establish_server_connection(self, host, port, scheme):
         address = tcp.Address((host, port))
@@ -437,3 +445,26 @@ class HttpLayer(base.Layer):
                     ))
                 return False
         return True
+
+    def handle_101_switching_protocols(self, flow):
+        """
+        Handle a successful HTTP 101 Switching Protocols Response, received after e.g. a WebSocket upgrade request.
+        """
+        # Check for WebSockets handshake
+        is_websockets = (
+            flow and
+            websockets.check_handshake(flow.request.headers) and
+            websockets.check_handshake(flow.response.headers)
+        )
+        if is_websockets and not self.config.options.websockets:
+            self.log(
+                "Client requested WebSocket connection, but the protocol is currently disabled in mitmproxy.",
+                "info"
+            )
+
+        if is_websockets and self.config.options.websockets:
+            layer = pwebsockets.WebSocketsLayer(self, flow)
+        else:
+            layer = self.ctx.next_layer(self)
+
+        layer()

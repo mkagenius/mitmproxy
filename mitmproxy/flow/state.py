@@ -5,7 +5,7 @@ from abc import abstractmethod, ABCMeta
 import six
 from typing import List  # noqa
 
-from mitmproxy import filt
+from mitmproxy import flowfilter
 from mitmproxy import models  # noqa
 
 
@@ -53,11 +53,11 @@ def _pos(*args):
 
 
 class FlowView(FlowList):
-    def __init__(self, store, filt=None):
+    def __init__(self, store, flt=None):
         super(FlowView, self).__init__()
-        if not filt:
-            filt = _pos
-        self._build(store, filt)
+        if not flt:
+            flt = _pos
+        self._build(store, flt)
 
         self.store = store
         self.store.views.append(self)
@@ -65,19 +65,19 @@ class FlowView(FlowList):
     def _close(self):
         self.store.views.remove(self)
 
-    def _build(self, flows, filt=None):
-        if filt:
-            self.filt = filt
-        self._list = list(filter(self.filt, flows))
+    def _build(self, flows, flt=None):
+        if flt:
+            self.filter = flt
+        self._list = list(filter(self.filter, flows))
 
     def _add(self, f):
-        if self.filt(f):
+        if self.filter(f):
             self._list.append(f)
 
     def _update(self, f):
         if f not in self._list:
             self._add(f)
-        elif not self.filt(f):
+        elif not self.filter(f):
             self._remove(f)
 
     def _remove(self, f):
@@ -187,12 +187,12 @@ class State(object):
         self.flows = FlowStore()
         self.view = FlowView(self.flows, None)
 
-        # These are compiled filt expressions:
+        # These are compiled filter expressions:
         self.intercept = None
 
     @property
     def filter_txt(self):
-        return getattr(self.view.filt, "pattern", None)
+        return getattr(self.view.filter, "pattern", None)
 
     def flow_count(self):
         return len(self.flows)
@@ -229,21 +229,21 @@ class State(object):
         if txt == self.filter_txt:
             return
         if txt:
-            f = filt.parse(txt)
-            if not f:
+            flt = flowfilter.parse(txt)
+            if not flt:
                 return "Invalid filter expression."
             self.view._close()
-            self.view = FlowView(self.flows, f)
+            self.view = FlowView(self.flows, flt)
         else:
             self.view._close()
             self.view = FlowView(self.flows, None)
 
     def set_intercept(self, txt):
         if txt:
-            f = filt.parse(txt)
-            if not f:
+            flt = flowfilter.parse(txt)
+            if not flt:
                 return "Invalid filter expression."
-            self.intercept = f
+            self.intercept = flt
         else:
             self.intercept = None
 
@@ -267,3 +267,13 @@ class State(object):
 
     def killall(self, master):
         self.flows.kill_all(master)
+
+
+class DummyState:
+    flows = ()
+
+    def add_flow(self, *args, **kwargs):
+        pass
+
+    def update_flow(self, *args, **kwargs):
+        pass

@@ -1,7 +1,7 @@
 import re
 
 from mitmproxy import exceptions
-from mitmproxy import filt
+from mitmproxy import flowfilter
 
 
 class Replace:
@@ -18,8 +18,8 @@ class Replace:
         """
         lst = []
         for fpatt, rex, s in options.replacements:
-            cpatt = filt.parse(fpatt)
-            if not cpatt:
+            flt = flowfilter.parse(fpatt)
+            if not flt:
                 raise exceptions.OptionsError(
                     "Invalid filter pattern: %s" % fpatt
                 )
@@ -29,16 +29,16 @@ class Replace:
                 raise exceptions.OptionsError(
                     "Invalid regular expression: %s - %s" % (rex, str(e))
                 )
-            lst.append((rex, s, cpatt))
+            lst.append((rex, s, flt))
         self.lst = lst
 
     def execute(self, f):
-        for rex, s, cpatt in self.lst:
-            if cpatt(f):
+        for rex, s, flt in self.lst:
+            if flt(f):
                 if f.response:
-                    f.response.replace(rex, s)
+                    f.response.replace(rex, s, flags=re.DOTALL)
                 else:
-                    f.request.replace(rex, s)
+                    f.request.replace(rex, s, flags=re.DOTALL)
 
     def request(self, flow):
         if not flow.reply.has_message:

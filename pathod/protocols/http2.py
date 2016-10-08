@@ -6,7 +6,7 @@ import time
 import hyperframe.frame
 from hpack.hpack import Encoder, Decoder
 
-from netlib import utils, strutils
+from netlib import utils
 from netlib.http import http2
 import netlib.http.headers
 import netlib.http.response
@@ -201,7 +201,7 @@ class HTTP2StateProtocol(object):
         headers = response.headers.copy()
 
         if ':status' not in headers:
-            headers.insert(0, b':status', strutils.always_bytes(response.status_code))
+            headers.insert(0, b':status', str(response.status_code).encode())
 
         if hasattr(response, 'stream_id'):
             stream_id = response.stream_id
@@ -250,13 +250,13 @@ class HTTP2StateProtocol(object):
         self.tcp_handler.wfile.write(raw_bytes)
         self.tcp_handler.wfile.flush()
         if not hide and self.dump_frames:  # pragma no cover
-            print(frm.human_readable(">>"))
+            print(">> " + repr(frm))
 
     def read_frame(self, hide=False):
         while True:
             frm = http2.parse_frame(*http2.read_raw_frame(self.tcp_handler.rfile))
             if not hide and self.dump_frames:  # pragma no cover
-                print(frm.human_readable("<<"))
+                print("<< " + repr(frm))
 
             if isinstance(frm, hyperframe.frame.PingFrame):
                 raw_bytes = hyperframe.frame.PingFrame(flags=['ACK'], payload=frm.payload).serialize()
@@ -341,7 +341,7 @@ class HTTP2StateProtocol(object):
 
         if self.dump_frames:  # pragma no cover
             for frm in frms:
-                print(frm.human_readable(">>"))
+                print(">> ", repr(frm))
 
         return [frm.serialize() for frm in frms]
 
@@ -359,7 +359,7 @@ class HTTP2StateProtocol(object):
 
         if self.dump_frames:  # pragma no cover
             for frm in frms:
-                print(frm.human_readable(">>"))
+                print(">> ", repr(frm))
 
         return [frm.serialize() for frm in frms]
 

@@ -58,8 +58,7 @@ Connection Events
 
     .. versionchanged:: 0.14
 
-    :param Layer root_layer: The root layer (see :ref:`protocols` for an explanation what the root
-        layer is), which provides transparent access to all attributes of the
+    :param Layer root_layer: The root layer, which provides transparent access to all attributes of the
         :py:class:`~mitmproxy.proxy.RootContext`. For example, ``root_layer.client_conn.address``
         gives the remote address of the connecting client.
 
@@ -129,7 +128,7 @@ HTTP Events
 WebSockets Events
 ^^^^^^^^^^^^^^^^^
 
-.. py:function:: websockets_handshake(context, flow)
+.. py:function:: websocket_handshake(context, flow)
 
     Called when a client wants to establish a WebSockets connection.
     The WebSockets-specific headers can be manipulated to manipulate the handshake.
