@@ -36,7 +36,7 @@ class TestMaster(flow.FlowMaster):
         s = ProxyServer(config)
         state = flow.State()
         flow.FlowMaster.__init__(self, opts, s, state)
-        self.addons.add(opts, *builtins.default_addons())
+        self.addons.add(*builtins.default_addons())
         self.apps.add(testapp, "testapp", 80)
         self.apps.add(errapp, "errapp", 80)
         self.clear_log()
@@ -44,8 +44,9 @@ class TestMaster(flow.FlowMaster):
     def clear_log(self):
         self.tlog = []
 
-    def add_log(self, message, level=None):
-        self.tlog.append(message)
+    @controller.handler
+    def log(self, e):
+        self.tlog.append(e.msg)
 
 
 class ProxyThread(threading.Thread):

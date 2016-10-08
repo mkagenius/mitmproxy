@@ -4,8 +4,8 @@ import sys
 
 import six
 
-from netlib import websockets
 import netlib.exceptions
+from mitmproxy import controller
 from mitmproxy import exceptions
 from mitmproxy import protocol
 from mitmproxy.proxy import modes
@@ -33,7 +33,7 @@ class RootContext(object):
         self.channel = channel
         self.config = config
 
-    def next_layer(self, top_layer, flow=None):
+    def next_layer(self, top_layer):
         """
         This function determines the next layer in the protocol stack.
 
@@ -43,22 +43,10 @@ class RootContext(object):
         Returns:
             The next layer
         """
-        layer = self._next_layer(top_layer, flow)
+        layer = self._next_layer(top_layer)
         return self.channel.ask("next_layer", layer)
 
-    def _next_layer(self, top_layer, flow):
-        if flow is not None:
-            # We already have a flow, try to derive the next information from it
-
-            # Check for WebSockets handshake
-            is_websockets = (
-                flow and
-                websockets.check_handshake(flow.request.headers) and
-                websockets.check_handshake(flow.response.headers)
-            )
-            if isinstance(top_layer, protocol.HttpLayer) and is_websockets:
-                return protocol.WebSocketsLayer(top_layer, flow)
-
+    def _next_layer(self, top_layer):
         try:
             d = top_layer.client_conn.rfile.peek(3)
         except netlib.exceptions.TcpException as e:
@@ -82,7 +70,7 @@ class RootContext(object):
         # An inline script may upgrade from http to https,
         # in which case we need some form of TLS layer.
         if isinstance(top_layer, modes.ReverseProxy):
-            return protocol.TlsLayer(top_layer, client_tls, top_layer.server_tls)
+            return protocol.TlsLayer(top_layer, client_tls, top_layer.server_tls, top_layer.server_conn.address.host)
         if isinstance(top_layer, protocol.ServerConnectionMixin) or isinstance(top_layer, protocol.UpstreamConnectLayer):
             return protocol.TlsLayer(top_layer, client_tls, client_tls)
 
@@ -125,14 +113,13 @@ class RootContext(object):
         """
         Send a log message to the master.
         """
-
         full_msg = [
             "{}: {}".format(repr(self.client_conn.address), msg)
         ]
         for i in subs:
             full_msg.append("  -> " + i)
         full_msg = "\n".join(full_msg)
-        self.channel.tell("log", Log(full_msg, level))
+        self.channel.tell("log", controller.LogEntry(full_msg, level))
 
     @property
     def layers(self):
@@ -140,9 +127,3 @@ class RootContext(object):
 
     def __repr__(self):
         return "RootContext"
-
-
-class Log(object):
-    def __init__(self, msg, level="info"):
-        self.msg = msg
-        self.level = level

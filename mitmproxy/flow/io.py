@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function, division
 import os
 
 from mitmproxy import exceptions
+from mitmproxy import flowfilter
 from mitmproxy import models
 from mitmproxy.contrib import tnetstring
 from mitmproxy.flow import io_compat
@@ -25,16 +26,6 @@ class FlowReader:
         """
             Yields Flow objects from the dump.
         """
-
-        # There is a weird mingw bug that breaks .tell() when reading from stdin.
-        try:
-            self.fo.tell()
-        except IOError:  # pragma: no cover
-            can_tell = False
-        else:
-            can_tell = True
-
-        off = 0
         try:
             while True:
                 data = tnetstring.load(self.fo)
@@ -42,27 +33,24 @@ class FlowReader:
                     data = io_compat.migrate_flow(data)
                 except ValueError as e:
                     raise exceptions.FlowReadException(str(e))
-                if can_tell:
-                    off = self.fo.tell()
                 if data["type"] not in models.FLOW_TYPES:
                     raise exceptions.FlowReadException("Unknown flow type: {}".format(data["type"]))
                 yield models.FLOW_TYPES[data["type"]].from_state(data)
-        except ValueError:
-            # Error is due to EOF
-            if can_tell and self.fo.tell() == off and self.fo.read() == b'':
-                return
+        except ValueError as e:
+            if str(e) == "not a tnetstring: empty file":
+                return  # Error is due to EOF
             raise exceptions.FlowReadException("Invalid data format.")
 
 
 class FilteredFlowWriter:
-    def __init__(self, fo, filt):
+    def __init__(self, fo, flt):
         self.fo = fo
-        self.filt = filt
+        self.flt = flt
 
-    def add(self, f):
-        if self.filt and not f.match(self.filt):
+    def add(self, flow):
+        if self.flt and not flowfilter.match(self.flt, flow):
             return
-        d = f.get_state()
+        d = flow.get_state()
         tnetstring.dump(d, self.fo)
 
 

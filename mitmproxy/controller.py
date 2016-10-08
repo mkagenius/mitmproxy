@@ -25,21 +25,27 @@ Events = frozenset([
     "tcp_close",
 
     "request",
+    "requestheaders",
     "response",
     "responseheaders",
+    "error",
 
-    "websockets_handshake",
+    "websocket_handshake",
 
     "next_layer",
 
-    "error",
-    "log",
-
-    "start",
     "configure",
     "done",
+    "log",
+    "start",
     "tick",
 ])
+
+
+class LogEntry(object):
+    def __init__(self, msg, level):
+        self.msg = msg
+        self.level = level
 
 
 class Log(object):
@@ -89,10 +95,16 @@ class Master(object):
             mitmproxy_ctx.master = None
             mitmproxy_ctx.log = None
 
-    def add_log(self, e, level="info"):
+    def tell(self, mtype, m):
+        m.reply = DummyReply()
+        self.event_queue.put((mtype, m))
+
+    def add_log(self, e, level):
         """
             level: debug, info, warn, error
         """
+        with self.handlecontext():
+            self.addons("log", LogEntry(e, level))
 
     def add_server(self, server):
         # We give a Channel to the server which can be used to communicate with the master

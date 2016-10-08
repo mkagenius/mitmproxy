@@ -3,7 +3,7 @@ import io
 
 import netlib.utils
 from netlib.http import Headers
-from mitmproxy import filt, flow, options
+from mitmproxy import flowfilter, flow, options
 from mitmproxy.contrib import tnetstring
 from mitmproxy.exceptions import FlowReadException, Kill
 from mitmproxy.models import Error
@@ -37,39 +37,6 @@ def test_app_registry():
     assert ar.get(r)
 
 
-class TestClientPlaybackState:
-
-    def test_tick(self):
-        first = tutils.tflow()
-        s = flow.State()
-        fm = flow.FlowMaster(None, None, s)
-        fm.start_client_playback([first, tutils.tflow()], True)
-        c = fm.client_playback
-        c.testing = True
-
-        assert not c.done()
-        assert not s.flow_count()
-        assert c.count() == 2
-        c.tick(fm)
-        assert s.flow_count()
-        assert c.count() == 1
-
-        c.tick(fm)
-        assert c.count() == 1
-
-        c.clear(c.current)
-        c.tick(fm)
-        assert c.count() == 0
-        c.clear(c.current)
-        assert c.done()
-
-        fm.state.clear()
-        fm.tick(timeout=0)
-
-        fm.stop_client_playback()
-        assert not fm.client_playback
-
-
 class TestHTTPFlow(object):
 
     def test_copy(self):
@@ -101,14 +68,14 @@ class TestHTTPFlow(object):
 
     def test_match(self):
         f = tutils.tflow(resp=True)
-        assert not f.match("~b test")
-        assert f.match(None)
-        assert not f.match("~b test")
+        assert not flowfilter.match("~b test", f)
+        assert flowfilter.match(None, f)
+        assert not flowfilter.match("~b test", f)
 
         f = tutils.tflow(err=True)
-        assert f.match("~e")
+        assert flowfilter.match("~e", f)
 
-        tutils.raises(ValueError, f.match, "~")
+        tutils.raises(ValueError, flowfilter.match, "~", f)
 
     def test_backup(self):
         f = tutils.tflow()
@@ -228,14 +195,14 @@ class TestTCPFlow:
 
     def test_match(self):
         f = tutils.ttcpflow()
-        assert not f.match("~b nonexistent")
-        assert f.match(None)
-        assert not f.match("~b nonexistent")
+        assert not flowfilter.match("~b nonexistent", f)
+        assert flowfilter.match(None, f)
+        assert not flowfilter.match("~b nonexistent", f)
 
         f = tutils.ttcpflow(err=True)
-        assert f.match("~e")
+        assert flowfilter.match("~e", f)
 
-        tutils.raises(ValueError, f.match, "~")
+        tutils.raises(ValueError, flowfilter.match, "~", f)
 
 
 class TestState:
@@ -433,8 +400,8 @@ class TestSerialize:
 
     def test_filter(self):
         sio = io.BytesIO()
-        fl = filt.parse("~c 200")
-        w = flow.FilteredFlowWriter(sio, fl)
+        flt = flowfilter.parse("~c 200")
+        w = flow.FilteredFlowWriter(sio, flt)
 
         f = tutils.tflow(resp=True)
         f.response.status_code = 200
@@ -477,13 +444,13 @@ class TestFlowMaster:
         fm = flow.FlowMaster(None, None, s)
         f = tutils.tflow(resp=True)
         f.request.content = None
-        assert "missing" in fm.replay_request(f)
+        tutils.raises("missing", fm.replay_request, f)
 
         f.intercepted = True
-        assert "intercepting" in fm.replay_request(f)
+        tutils.raises("intercepted", fm.replay_request, f)
 
         f.live = True
-        assert "live" in fm.replay_request(f)
+        tutils.raises("live", fm.replay_request, f)
 
     def test_duplicate_flow(self):
         s = flow.State()
@@ -520,26 +487,6 @@ class TestFlowMaster:
         fm.error(f)
 
         fm.shutdown()
-
-    def test_client_playback(self):
-        s = flow.State()
-
-        f = tutils.tflow(resp=True)
-        pb = [tutils.tflow(resp=True), f]
-        fm = flow.FlowMaster(
-            options.Options(),
-            DummyServer(ProxyConfig(options.Options())),
-            s
-        )
-        assert not fm.start_client_playback(pb, False)
-        fm.client_playback.testing = True
-
-        assert not fm.state.flow_count()
-        fm.tick(0)
-        assert fm.state.flow_count()
-
-        f.error = Error("error")
-        fm.error(f)
 
 
 class TestRequest:
