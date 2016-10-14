@@ -583,7 +583,7 @@ class ConsoleMaster(flow.FlowMaster):
             )
         )
 
-    def _write_flows(self, path, flows):
+    def _write_flows(self, path, flows, as_har=False):
         if not path:
             return
         path = os.path.expanduser(path)
@@ -591,16 +591,19 @@ class ConsoleMaster(flow.FlowMaster):
             f = open(path, "wb")
             fw = flow.FlowWriter(f)
             for i in flows:
-                fw.add(i)
+                fw.add(i, as_har)
             f.close()
         except IOError as v:
             signals.status_message.send(message=v.strerror)
 
     def save_one_flow(self, path, flow):
-        return self._write_flows(path, [flow])
+        return self._write_flows(path, [flow], False)
 
     def save_flows(self, path):
-        return self._write_flows(path, self.state.view)
+        return self._write_flows(path, self.state.view, False)
+
+    def save_flows_as_har(self, path):
+        return self._write_flows(path, self.state.view, True)
 
     def load_flows_callback(self, path):
         if not path:
@@ -685,24 +688,18 @@ class ConsoleMaster(flow.FlowMaster):
     # Handlers
     @controller.handler
     def error(self, f):
-        f = flow.FlowMaster.error(self, f)
-        if f:
-            self.process_flow(f)
-        return f
+        super(ConsoleMaster, self).error(f)
+	self.process_flow(f)
 
     @controller.handler
     def request(self, f):
-        f = flow.FlowMaster.request(self, f)
-        if f:
-            self.process_flow(f)
-        return f
+        super(ConsoleMaster, self).request(f)
+        self.process_flow(f)
 
     @controller.handler
     def response(self, f):
-        f = flow.FlowMaster.response(self, f)
-        if f:
-            self.process_flow(f)
-        return f
+        super(ConsoleMaster, self).response(f)
+        self.process_flow(f)
 
     @controller.handler
     def tcp_message(self, f):

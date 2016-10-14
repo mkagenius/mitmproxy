@@ -6,16 +6,21 @@ from mitmproxy import exceptions
 from mitmproxy import flowfilter
 from mitmproxy import models
 from mitmproxy.contrib import tnetstring
-from mitmproxy.flow import io_compat
+from mitmproxy.flow import io_compat, export
 
 
 class FlowWriter:
     def __init__(self, fo):
         self.fo = fo
 
-    def add(self, flow):
-        d = flow.get_state()
-        tnetstring.dump(d, self.fo)
+    def add(self, flow, as_har=False):
+        if as_har:
+            har_json = export.har_format(flow)
+            self.fo.write(har_json)
+        else:
+            d = flow.get_state()
+
+            tnetstring.dump(d, self.fo)
 
 
 class FlowReader:

@@ -84,6 +84,7 @@ class Flow(stateobject.StateObject):
         self.authentication = 0 # 0 - neutral, 1 - good, 2 - bad
         self.payu_salt_leak = 0 # 0 - neutral, 1 - good, 2 - bad
         self.otp_leak = 0 # 0 - neutral, 1 - good, 2 - bad
+        self.key_logs = None # comma separated string like "enter,e,h"
 
     _stateobject_attributes = dict(
         id=str,
@@ -97,6 +98,7 @@ class Flow(stateobject.StateObject):
         authentication=int,
         payu_salt_leak=int,
         otp_leak=int,
+        key_logs=str,
     )
 
     def get_state(self):

@@ -49,6 +49,18 @@ otp_regex = re.compile(r'^\d{3,6}$')
 
 otp_params = ["pin", "otp", "code", "onetimepass", "onetimepassword"]
 
+def add_key_log(f, key):
+    """
+        return the flow object after adding this key log
+    """
+    cur_key_logs = f.key_logs
+    if cur_key_logs:
+        f.key_logs += "," + str(key)
+    else:
+        f.key_logs = str(key)
+
+    return f
+
 def parse_qs2(body):
         d = parse_qs(body)
         for k, v in d.iteritems():

@@ -97,6 +97,7 @@ def response(flow):
     response_body_compression = response_body_decoded_size - response_body_size
 
     entry = {
+        "keyLogs": flow.key_logs,
         "startedDateTime": started_date_time,
         "time": full_time,
         "request": {

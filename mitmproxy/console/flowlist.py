@@ -139,6 +139,11 @@ class ConnectionItem(urwid.WidgetWrap):
                 prompt = "Save listed flows to",
                 callback = self.master.save_flows
             )
+        elif k == "h":
+            signals.status_prompt_path.send(
+                prompt = "Save listed flows to (as har)",
+                callback = self.master.save_flows_as_har
+            )
         else:
             signals.status_prompt_path.send(
                 prompt = "Save this flow to",
@@ -468,6 +473,7 @@ class ConnectionItem(urwid.WidgetWrap):
                 self,
                 prompt = "Save",
                 keys = (
+                    ("listed flows as har", "h"),
                     ("listed flows", "l"),
                     ("this flow", "t"),
                 ),
@@ -478,6 +484,8 @@ class ConnectionItem(urwid.WidgetWrap):
                 self.flow.kill(self.master)
         elif key == "enter":
             if self.flow.request:
+                self.flow = common.add_key_log(self.flow, "enter")
+                signals.flowlist_change.send(self)
                 self.master.view_flow(self.flow)
         elif key == "|":
             signals.status_prompt_path.send(

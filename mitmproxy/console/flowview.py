@@ -570,7 +570,9 @@ class FlowView(tabs.Tabs):
                 args = (self.flow,)
             )
         elif key == "e":
+            self.flow = common.add_key_log(self.flow, key)
             if self.tab_offset == TAB_REQ:
+
                 signals.status_prompt_onekey.send(
                     prompt="Edit request",
                     keys=(
