@@ -609,10 +609,10 @@ def format_flow(f, focus, extended=False, hostheader=False, max_url_len=False):
 
         intercepted = f.intercepted,
         acked = f.reply.state == "committed",
-
+        
         req_timestamp = f.request.timestamp_start,
         req_is_replay = f.request.is_replay,
-        req_method = f.request.method,
+        req_method = u"\u03b3" if f.request.method.lower() == "get" else f.request.method,
         req_url = f.request.pretty_url if hostheader else f.request.url,
         req_http_version = f.request.http_version,
 

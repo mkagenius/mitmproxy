@@ -112,11 +112,11 @@ class RequestReplayThread(basethread.BaseThread):
         except exceptions.Kill:
             # Kill should only be raised if there's a channel in the
             # first place.
-            from ..proxy.root_context import Log
-            self.channel.tell("log", Log("Connection killed", "info"))
+            # from ..proxy.root_context import Log
+            self.channel.tell("log", controller.LogEntry("Connection killed", "info"))
         except Exception:
-            from ..proxy.root_context import Log
-            self.channel.tell("log", Log(traceback.format_exc(), "error"))
+            # from ..proxy.root_context import Log
+            self.channel.tell("log", controller.LogEntry(traceback.format_exc(), "error"))
         finally:
             r.first_line_format = first_line_format_backup
             self.flow.live = False

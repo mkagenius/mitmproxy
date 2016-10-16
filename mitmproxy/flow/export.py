@@ -124,11 +124,15 @@ def har_format(flow):
 
     started_date_time = format_datetime(datetime.utcfromtimestamp(flow.request.timestamp_start))
 
+    response_body_size = -1
+    response_body_decoded_size = -1
+    response_body_compression = -1
     # Response body size and encoding
-    response_body_size = len(flow.response.raw_content)
-    response_body_decoded_size = len(flow.response.content)
-    response_body_compression = response_body_decoded_size - response_body_size
-
+    if flow.response and flow.response.raw_content:
+        response_body_size = len(flow.response.raw_content)
+        response_body_decoded_size = len(flow.response.content)
+        response_body_compression = response_body_decoded_size - response_body_size
+    
     entry = {
         "keyLogs": flow.key_logs,
         "startedDateTime": started_date_time,
@@ -143,7 +147,13 @@ def har_format(flow):
             "headersSize": len(str(flow.request.headers)),
             "bodySize": len(flow.request.content),
         },
-        "response": {
+        
+        "cache": {},
+        "timings": timings,
+    }
+
+    if flow.response:
+        entry["response"] = {
             "status": flow.response.status_code,
             "statusText": flow.response.reason,
             "httpVersion": flow.response.http_version,
@@ -157,11 +167,7 @@ def har_format(flow):
             "redirectURL": flow.response.headers.get('Location', ''),
             "headersSize": len(str(flow.response.headers)),
             "bodySize": response_body_size,
-        },
-        "cache": {},
-        "timings": timings,
-    }
-
+        }
     # Store binay data as base64
     if strutils.is_mostly_bin(flow.response.content):
         b64 = base64.b64encode(flow.response.content)

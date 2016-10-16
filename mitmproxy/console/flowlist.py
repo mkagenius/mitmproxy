@@ -294,7 +294,7 @@ class ConnectionItem(urwid.WidgetWrap):
             signals.status_message.send(message="No backup found..maybe you checked result too fast.")
             return 0
         backup_flow = f.get_state()["backup"]
-        if f.response.content == backup_flow["response"]["content"]:
+        if f.response and f.response.content == backup_flow["response"]["content"]:
             return 2 # auth broken
         else:
             return 1
@@ -568,6 +568,7 @@ class FlowListBox(urwid.ListBox):
             for i in common.METHOD_OPTIONS:
                 if i[1] == k:
                     method = i[0].upper()
+            
             self.get_url(method)
 
     def get_url(self, method):
