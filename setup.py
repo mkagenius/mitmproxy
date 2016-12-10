@@ -13,13 +13,13 @@ with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name="mitmproxy",
+    name="fallixy",
     version=version.VERSION,
-    description="An interactive, SSL-capable, man-in-the-middle HTTP proxy for penetration testers and software developers.",
+    description="(Fallible version with extras)An interactive, MITM HTTP proxy for penetration testers and software developers.",
     long_description=long_description,
-    url="http://mitmproxy.org",
-    author="Aldo Cortesi",
-    author_email="aldo@corte.si",
+    url="http://github.com/mkagenius/mitmproxy",
+    author="Fallible",
+    author_email="hello@fallible.co",
     license="MIT",
     classifiers=[
         "License :: OSI Approved :: MIT License",
