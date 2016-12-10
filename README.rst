@@ -1,11 +1,13 @@
 mitmproxy
 ^^^^^^^^^
 
-## To install Fallible's version
-* `pip install fallixy`
+To install Fallible's version
+---------------------------
+* ``pip install fallixy``
 
-## To run
-* `mitmproxy`
+To run
+------------------
+* ``mitmproxy``
 
 |travis| |appveyor| |coverage| |latest_release| |python_versions|
 
