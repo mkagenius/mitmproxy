@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import absolute_import, print_function, division
 
 import os
@@ -211,7 +209,6 @@ def highlight_regex(str, regex, textattr="text", regexattr="key"):
 
     return l
 
-
 def highlight_key(str, key, textattr="text", keyattr="key"):
     l = []
     parts = str.split(key, 1)
@@ -308,12 +305,12 @@ else:
     SYMBOL_OTP_LEAK = "[otp]"
 
 
-def raw_format_flow(f):
+def raw_format_flow(f, focus, extended):
     f = dict(f)
-
     pile = []
     req = []
-    if f["extended"]:
+    
+    if extended:
         req.append(
             fcol(
                 human.format_timestamp(f["req_timestamp"]),
@@ -321,14 +318,13 @@ def raw_format_flow(f):
             )
         )
     else:
-        req.append(fcol(">>" if f["focus"] else "  ", "focus"))
+        req.append(fcol(">>" if focus else "  ", "focus"))
 
     if f["marked"]:
-        req.append(fcol(SYMBOL_MARK, "focus"))
+        req.append(fcol(SYMBOL_MARK, "mark"))
 
     test_result_color = ["text", "code_200", "code_500", "warn"]
-    
-   
+
     if f["req_is_replay"]:
         req.append(fcol(SYMBOL_REPLAY, "replay"))
     req.append(fcol(f["req_method"], "method"))
@@ -369,7 +365,7 @@ def raw_format_flow(f):
         if f["resp_is_replay"]:
             resp.append(fcol(SYMBOL_REPLAY, "replay"))
         resp.append(fcol(f["resp_code"], ccol))
-        if f["extended"]:
+        if extended:
             resp.append(fcol(f["resp_reason"], ccol))
         if f["intercepted"] and f["resp_code"] and not f["acked"]:
             rc = "intercept"
@@ -380,13 +376,10 @@ def raw_format_flow(f):
             resp.append(fcol(f["resp_ctype"], rc))
         resp.append(fcol(f["resp_clen"], rc))
         resp.append(fcol(f["roundtrip"], rc))
-
         resp.append(fcol(SYMBOL_AUTHENTICATION, test_result_color[f["authentication"]]))
         resp.append(fcol(SYMBOL_AUTHORIZATION, test_result_color[f["authorization"]]))
         resp.append(fcol(SYMBOL_PAYU_SALT_LEAK, test_result_color[f["payu_salt_leak"]]))
         resp.append(fcol(SYMBOL_OTP_LEAK, test_result_color[f["otp_leak"]]))
-
-            
 
     elif f["err_msg"]:
         resp.append(fcol(SYMBOL_RETURN, "error"))
@@ -601,18 +594,14 @@ def export_to_clip_or_file(key, scope, flow, writer):
 flowcache = utils.LRUCache(800)
 
 
-def format_flow(f, focus, extended=False, hostheader=False, max_url_len=False):
+def format_flow(f, focus, extended=False, hostheader=False):
     d = dict(
-        focus=focus,
-        extended=extended,
-        max_url_len=max_url_len,
-
         intercepted = f.intercepted,
         acked = f.reply.state == "committed",
-        
+
         req_timestamp = f.request.timestamp_start,
         req_is_replay = f.request.is_replay,
-        req_method = u"\u03b3" if f.request.method.lower() == "get" else f.request.method,
+        req_method = f.request.method,
         req_url = f.request.pretty_url if hostheader else f.request.url,
         req_http_version = f.request.http_version,
 
@@ -624,7 +613,6 @@ def format_flow(f, focus, extended=False, hostheader=False, max_url_len=False):
         authentication = f.authentication,
         payu_salt_leak = f.payu_salt_leak,
         otp_leak = f.otp_leak,
-
     )
     if f.response:
         if f.response.raw_content:
@@ -650,5 +638,7 @@ def format_flow(f, focus, extended=False, hostheader=False, max_url_len=False):
             d["resp_ctype"] = t.split(";")[0]
         else:
             d["resp_ctype"] = ""
-
-    return flowcache.get(raw_format_flow, tuple(sorted(d.items())))
+    return flowcache.get(
+        raw_format_flow,
+        tuple(sorted(d.items())), focus, extended
+    )

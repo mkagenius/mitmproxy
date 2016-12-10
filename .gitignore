@@ -1,3 +1,7 @@
+*.har
+*.flows
+*.flow
+
 .DS_Store
 MANIFEST
 */tmp

@@ -127,7 +127,6 @@ class ConnectionItem(urwid.WidgetWrap):
             self.flow,
             self.f,
             hostheader=self.master.options.showhost,
-            max_url_len=cols,
         )
 
     def selectable(self):
