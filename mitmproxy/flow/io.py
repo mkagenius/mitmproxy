@@ -12,6 +12,9 @@ from mitmproxy.flow import io_compat, export
 class FlowWriter:
     def __init__(self, fo):
         self.fo = fo
+    def add_as_report(self, flows):
+        html = export.report_format_flows(flows)
+        self.fo.write(html)
 
     def add_as_har(self, flows):
         har_json = export.har_format_flows(flows)

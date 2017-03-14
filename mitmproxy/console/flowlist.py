@@ -143,6 +143,11 @@ class ConnectionItem(urwid.WidgetWrap):
                 prompt = "Save listed flows to (as har)",
                 callback = self.master.save_flows_as_har
             )
+        elif k == "r":
+            signals.status_prompt_path.send(
+                prompt="Save listed flows as a report",
+                callback=self.master.save_flows_as_report
+            )
         else:
             signals.status_prompt_path.send(
                 prompt = "Save this flow to",
@@ -512,6 +517,7 @@ class ConnectionItem(urwid.WidgetWrap):
                 self,
                 prompt = "Save",
                 keys = (
+                    ("listed flows as report", "r"),
                     ("listed flows as har", "h"),
                     ("listed flows", "l"),
                     ("this flow", "t"),

@@ -71,6 +71,61 @@ def _native(s):
             return s.decode()
     return s
 
+def get_class(val):
+    if val == 0:
+        return "white-circle"
+    if val == 1:
+        return "green-circle"
+    if val == 2:
+        return "red-circle"
+    if val == 3:
+        return "yellow-circle"
+
+def td(value):
+    if type(value) == int:
+        return "<td class="+get_class(value)+">&#9673;</td>"
+    else:
+        return "<td>"+str(value)+"</td>"
+
+def report_format_flows(flows):
+    html = """
+        <head>
+            <style type="text/css">
+                table {
+                    margin-left: 100px;
+                    margin-top: 50px;
+                }
+                tr:nth-child(even) {background-color: #f2f2f2}
+                th {
+                    background-color: #e74c3c;
+                    color: white;
+                }
+                th, td {
+                    padding: 15px;
+                    text-align: left;
+                }
+                tr:hover {background-color: #f5f5f5}
+                .green-circle{
+                    color: #4CAF50;
+                }
+                .red-circle {
+                    color: e74c3c;
+                }
+                .yellow-circle {
+                    color: yellow;
+                }
+                .white-circle {
+                    color: white;
+                }
+            </style>
+        </head>
+    """
+    html += "<table>"
+    html += "<tr><th>URL</th><th>Authentication</th><th>Authorization</th><th>OTP leak</th><th>PAYU salt leak</th>"
+    for f in flows:
+        html += "<tr>" + td(f.request.url) + td(f.authentication) + td(f.authorization) + td(f.otp_leak) + td(f.payu_salt_leak) + "</tr>"
+    return html+"</table>"
+
 def har_format(flow):
 
     # -1 indicates that these values do not apply to current request
@@ -181,6 +236,7 @@ def har_format(flow):
         entry["serverIPAddress"] = str(flow.server_conn.ip_address.address[0])
 
     return entry
+
 
 def har_format_flows(flows):
     HAR = {}
