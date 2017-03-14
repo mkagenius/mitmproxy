@@ -590,8 +590,11 @@ class ConsoleMaster(flow.FlowMaster):
         try:
             f = open(path, "wb")
             fw = flow.FlowWriter(f)
-            for i in flows:
-                fw.add(i, as_har)
+            if(as_har):
+                fw.add_as_har(flows)
+            else:
+                for i in flows:
+                    fw.add(i)
             f.close()
         except IOError as v:
             signals.status_message.send(message=v.strerror)

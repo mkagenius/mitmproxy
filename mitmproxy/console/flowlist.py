@@ -166,6 +166,11 @@ class ConnectionItem(urwid.WidgetWrap):
 
 
     def remove_auth(self, headers):
+        """
+        remove the authorization related headers, keep the rest
+        :param headers: input
+        :return: headers not containing any authorizations
+        """
         if 'authorization' in headers:
             headers.set_all('authorization', [])
         if 'Authorization' in headers:
@@ -187,6 +192,11 @@ class ConnectionItem(urwid.WidgetWrap):
         signals.status_message.send(message="Reverted.")
 
     def test_authentication(self, f):
+        """
+        Test authentication for this flow
+        :param f:
+        :return: whether authentication is required or not
+        """
         if not f.response:
             if "backup" not in f.get_state() or "response" not in f.get_state()["backup"]:
                 return 0
@@ -199,7 +209,11 @@ class ConnectionItem(urwid.WidgetWrap):
         return 3
 
     def test_payu_salt_leak(self, f):
-        
+        """
+        Look for PayU specific salt in flow response or request data
+        :param f:
+        :return: whether found salt or not
+        """
         signals.status_message.send(message="Testing payu salt leak.")
         # f.request.headers = self.remove_auth(f.request.headers)
         found_salt = False
@@ -216,7 +230,11 @@ class ConnectionItem(urwid.WidgetWrap):
         return 1 # no bug
 
     def test_otp_leak(self, f):
-        
+        """
+        Test if OTP is being sent back in the response of generate otp call
+        :param f:
+        :return: 2 if OTP is leaked else return 1
+        """
         prev_response = f.response
         signals.status_message.send(message="Testing otp leak")
         # f.request.headers = self.remove_auth(f.request.headers)
@@ -232,6 +250,12 @@ class ConnectionItem(urwid.WidgetWrap):
             return 1
 
     def edit_url(self, regex, url):
+        """
+        Swap existing phone number and email to see if Authorization is properly implemented for this API or not
+        :param regex:
+        :param url:
+        :return: new URL with new phone number and email address
+        """
         ret = ""
 
         ss = regex.finditer(url)
@@ -264,6 +288,11 @@ class ConnectionItem(urwid.WidgetWrap):
 
 
     def test_authorization(self, f):
+        """
+        Test authorization by replacing user identity to a different user while keeping auth headers same
+        :param f:
+        :return: 2 if auth is broken, else 1, 3 is yellow intermideate stage
+        """
         if not f.response:
             if "backup" not in f.get_state() or "response" not in f.get_state()["backup"]:
                 return 0
@@ -301,6 +330,12 @@ class ConnectionItem(urwid.WidgetWrap):
         return 0
 
     def is_different_data(self, new_resp, old_resp):
+        """
+        This compares new response data with the original response data and decides if they are same or new data got fetched
+        :param new_resp:
+        :param old_resp:
+        :return: True if data leaked and False if not
+        """
         content_type = ""
         if "content-type" in new_resp.headers:
             content_type = new_resp.headers["content-type"]
@@ -337,6 +372,11 @@ class ConnectionItem(urwid.WidgetWrap):
             return True # if error not happened then its a data leak
 
     def gather_authorization_result(self, f):
+        """
+        This function gathers all the authorization tests done so far on the flow
+        :param f:
+        :return: 2 if data leak, else 1
+        """
         if "backup" not in f.get_state():
             signals.status_message.send(message="No backup found..maybe you checked result too fast.")
             return 0
@@ -361,7 +401,7 @@ class ConnectionItem(urwid.WidgetWrap):
     def keypress(self, xxx_todo_changeme, key):
         (maxcol,) = xxx_todo_changeme
         key = common.shortcuts(key)
-
+        # Test keys are number 1 to 6, flow must me marked before run test on it.
         if key == "1":
             for f in self.state.flows:
                 if f.marked:

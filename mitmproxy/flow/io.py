@@ -13,14 +13,13 @@ class FlowWriter:
     def __init__(self, fo):
         self.fo = fo
 
-    def add(self, flow, as_har=False):
-        if as_har:
-            har_json = export.har_format(flow)
-            self.fo.write(har_json)
-        else:
-            d = flow.get_state()
+    def add_as_har(self, flows):
+        har_json = export.har_format_flows(flows)
+        self.fo.write(har_json)
 
-            tnetstring.dump(d, self.fo)
+    def add(self, flow):
+        d = flow.get_state()
+        tnetstring.dump(d, self.fo)
 
 
 class FlowReader:

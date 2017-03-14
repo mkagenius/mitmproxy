@@ -72,18 +72,6 @@ def _native(s):
     return s
 
 def har_format(flow):
-    HAR = {}
-    HAR.update({
-        "log": {
-            "version": "1.2",
-            "creator": {
-                "name": "mitmproxy har_dump",
-                "version": "0.1",
-                "comment": "mitmproxy version %s" % version.MITMPROXY
-            },
-            "entries": []
-        }
-    })
 
     # -1 indicates that these values do not apply to current request
     ssl_time = -1
@@ -134,6 +122,12 @@ def har_format(flow):
         response_body_compression = response_body_decoded_size - response_body_size
     
     entry = {
+        "testResults":{
+            "authentication":flow.authentication,
+            "authorization": flow.authorization,
+            "otp_leak":flow.otp_leak,
+            "payu_salt":flow.payu_salt_leak,
+        },
         "keyLogs": flow.key_logs,
         "startedDateTime": started_date_time,
         "time": full_time,
@@ -186,7 +180,24 @@ def har_format(flow):
     if flow.server_conn:
         entry["serverIPAddress"] = str(flow.server_conn.ip_address.address[0])
 
-    HAR["log"]["entries"].append(entry)
+    return entry
+
+def har_format_flows(flows):
+    HAR = {}
+    HAR.update({
+        "log": {
+            "version": "1.2",
+            "creator": {
+                "name": "mitmproxy har_dump",
+                "version": "0.1",
+                "comment": "mitmproxy version %s" % version.MITMPROXY
+            },
+            "entries": []
+        }
+    })
+    for f in flows:
+        entry = har_format(f)
+        HAR["log"]["entries"].append(entry)
     json_dump = json.dumps(HAR, indent=2)
     return json_dump
 
