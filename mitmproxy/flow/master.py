@@ -14,6 +14,7 @@ from mitmproxy.flow import modules
 from mitmproxy.onboarding import app
 from mitmproxy.protocol import http_replay
 
+import urlparse
 
 def event_sequence(f):
     if isinstance(f, models.HTTPFlow):
@@ -65,6 +66,126 @@ class FlowMaster(controller.Master):
             self.stream_large_bodies = modules.StreamLargeBodies(max_size)
         else:
             self.stream_large_bodies = False
+
+    list_chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    L = len(list_chars)
+
+    def ord2(self, ch):
+        for i in xrange(self.L):
+            if self.list_chars[i] == ch:
+                return i
+
+        return 0
+
+    def chr2(self, v):
+        if v < self.L:
+            return self.list_chars[v]
+        return '0'
+
+    def convert_to_number(self, v):
+        num = 0L
+        for i in xrange(len(v)):
+            num *= self.L
+            num += self.ord2(v[i])
+
+        return int(num)
+
+    def convert_to_string(self, v):
+        s = ""
+        while(v):
+            v=int(v)
+            s+=self.chr2(v % self.L)
+            v/=self.L
+        return s[::-1]
+
+    def increment_user_id(self, v):
+        if v.isdigit():
+            v = int(v)
+            v -= 1
+            return str(v)
+        if type(v) == float:
+            v = int(v)
+            v -= 1
+            return v
+        if type(v) == str:
+            v2 = self.convert_to_number(v)
+            v2 -= 1
+            s = self.convert_to_string(v2)
+            if ord(s[0]) == 0:
+                return s[1:]
+
+
+    def increment_id(self, f):
+        """
+        Increment user/profile id if found, else address id, else cart id
+        :param f:
+        :return: new copy of the flow f which incremented id
+        """
+        f2 = f.copy()
+        found = False
+        headers = f2.request.headers
+        if f2.request.headers:
+            for k, v in headers.iteritems():
+                if "userid" in k.lower() or "user_id" in k.lower():
+                    headers[k] = self.increment_user_id(headers[k])
+                    break
+                if "customerid" in k.lower() or "customer_id" in k.lower():
+                    headers[k] = self.increment_user_id(headers[k])
+                    break
+
+                if "profileid" in k.lower() or "profile_id" in k.lower():
+                    headers[k] = self.increment_user_id(headers[k])
+                    break
+
+                if "id" == k.lower():
+                    headers[k] = self.increment_user_id(headers[k])
+                    break
+
+        f2.request.headers = headers
+
+        if f2.request.content:
+            post_str = f.request.content
+            post_dict = dict(urlparse.parse_qsl(post_str))
+
+            for k,v in post_dict.iteritems():
+                if "userid" in k.lower() or "user_id" in k.lower():
+                    post_dict[k] = self.increment_user_id(post_dict[k])
+                    break
+                if "customerid" in k.lower() or "customer_id" in k.lower():
+                    post_dict[k] = self.increment_user_id(post_dict[k])
+                    break
+
+                if "profileid" in k.lower() or "profile_id" in k.lower():
+                    post_dict[k] = self.increment_user_id(post_dict[k])
+                    break
+
+                if "id" == k.lower():
+                    post_dict[k] = self.increment_user_id(post_dict[k])
+                    break
+
+            c = ""
+            for k,v in post_dict.iteritems():
+                c += k + "="+ v + "&"
+
+            f2.request.content = c
+
+        return f2
+
+    def repeater(self, f):
+        """
+            Repeat with a particular field being incremently changed like userId
+        :param f:
+        :return:
+        """
+
+        f2 = f.copy()
+        for i in xrange(64):
+            f2 = self.increment_id(f2)
+            # replay the request
+            self.replay_request(f2)
+            if (i and not (i & (i-1))):
+                self.state.add_flow(f2)
+
 
     def duplicate_flow(self, f):
         """

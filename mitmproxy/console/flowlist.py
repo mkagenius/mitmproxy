@@ -31,6 +31,7 @@ def _mkhelp():
         ("M", "toggle marked flow view"),
         ("n", "create a new request"),
         ("r", "replay request"),
+        ("R", "repeat this 64 times with incrementing id"),
         ("S", "server replay request/s"),
         ("U", "unmark all marked flows"),
         ("V", "revert changes to request"),
@@ -447,6 +448,10 @@ class ConnectionItem(urwid.WidgetWrap):
                     signals.flowlist_change.send(self)
 
 
+        if key == "R":
+            self.master.repeater(self.flow)
+            signals.status_message.send(message="Repeating request 64 times")
+            signals.flowlist_change.send(self)
         if key == "a":
             self.flow.accept_intercept(self.master)
             signals.flowlist_change.send(self)
