@@ -2,6 +2,7 @@ from __future__ import absolute_import, print_function, division
 
 import os
 import sys
+import re
 
 from typing import Optional  # noqa
 
@@ -15,6 +16,8 @@ from mitmproxy.onboarding import app
 from mitmproxy.protocol import http_replay
 
 import urlparse
+
+re_userid = re.compile(r'(?:[\/=])(\d{4,9})(?:[\?\/&]|$)') #re.compile(r'\b\d{4,7}\b')
 
 def event_sequence(f):
     if isinstance(f, models.HTTPFlow):
@@ -128,17 +131,21 @@ class FlowMaster(controller.Master):
             for k, v in headers.iteritems():
                 if "userid" in k.lower() or "user_id" in k.lower():
                     headers[k] = self.increment_user_id(headers[k])
+                    found = True
                     break
                 if "customerid" in k.lower() or "customer_id" in k.lower():
                     headers[k] = self.increment_user_id(headers[k])
+                    found = True
                     break
 
                 if "profileid" in k.lower() or "profile_id" in k.lower():
                     headers[k] = self.increment_user_id(headers[k])
+                    found = True
                     break
 
                 if "id" == k.lower():
                     headers[k] = self.increment_user_id(headers[k])
+                    found = True
                     break
 
         f2.request.headers = headers
@@ -150,17 +157,21 @@ class FlowMaster(controller.Master):
             for k,v in post_dict.iteritems():
                 if "userid" in k.lower() or "user_id" in k.lower():
                     post_dict[k] = self.increment_user_id(post_dict[k])
+                    found = True
                     break
                 if "customerid" in k.lower() or "customer_id" in k.lower():
                     post_dict[k] = self.increment_user_id(post_dict[k])
+                    found = True
                     break
 
                 if "profileid" in k.lower() or "profile_id" in k.lower():
                     post_dict[k] = self.increment_user_id(post_dict[k])
+                    found = True
                     break
 
                 if "id" == k.lower():
                     post_dict[k] = self.increment_user_id(post_dict[k])
+                    found = True
                     break
 
             c = ""
@@ -169,6 +180,17 @@ class FlowMaster(controller.Master):
 
             f2.request.content = c
 
+        if not found:
+            url = f2.request.url
+            ss = re_userid.finditer(url)
+            new_url = url
+            for i in ss:
+                span_tup = i.span(1)
+                new_url = url[0:span_tup[0]]
+                new_url += self.increment_user_id(url[span_tup[0]:span_tup[1]])
+                new_url += url[span_tup[1]:]
+                break
+            f2.request.url = new_url
         return f2
 
     def repeater(self, f):
