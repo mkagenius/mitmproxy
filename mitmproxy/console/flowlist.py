@@ -42,6 +42,10 @@ def _mkhelp():
         ("tab", "tab between eventlog and flow list"),
         ("enter", "view flow"),
         ("|", "run script on this flow"),
+        ("f1", "toggle authenticion to fail/pass"),
+        ("f2", "toggle authorization to fail/pass"),
+        ("f3", "toggle payu salt leak to fail/pass"),
+        ("f4", "toggle otp leak to fail/pass")
     ]
     text.extend(common.format_keyvals(keys, key="key", val="text", indent=4))
     return text
@@ -463,6 +467,22 @@ class ConnectionItem(urwid.WidgetWrap):
         elif key == "D":
             f = self.master.duplicate_flow(self.flow)
             self.master.state.set_focus_flow(f)
+            signals.flowlist_change.send(self)
+        elif key == "f1":
+            self.flow.authentication += 1
+            self.flow.authentication %= 3
+            signals.flowlist_change.send(self)
+        elif key == "f2":
+            self.flow.authorization += 1
+            self.flow.authorization %= 3
+            signals.flowlist_change.send(self)
+        elif key == "f3":
+            self.flow.payu_salt_leak += 1
+            self.flow.payu_salt_leak %= 3
+            signals.flowlist_change.send(self)
+        elif key == "f4":
+            self.flow.otp_leak += 1
+            self.flow.otp_leak %= 3
             signals.flowlist_change.send(self)
         elif key == "m":
             self.flow.marked = not self.flow.marked

@@ -20,6 +20,12 @@ class QueryEditor(base.GridEditor):
         col_text.Column("Value")
     ]
 
+class SecurityTestEditor(base.GridEditor):
+    title = "Security Test results"
+    columns = [
+        col_bytes.Column("Key"),
+        col_bytes.Column("Value")
+    ]
 
 class HeaderEditor(base.GridEditor):
     title = "Editing headers"

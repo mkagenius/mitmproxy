@@ -406,6 +406,7 @@ class FlowView(tabs.Tabs):
             # from an editor.
             c = self.master.spawn_editor(message.get_content(strict=False) or b"")
             message.content = c.rstrip(b"\n")
+
         elif part == "f":
             if not message.urlencoded_form and message.raw_content:
                 signals.status_prompt_onekey.send(
