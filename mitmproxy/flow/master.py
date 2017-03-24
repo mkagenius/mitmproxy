@@ -178,6 +178,8 @@ class FlowMaster(controller.Master):
             for k,v in post_dict.iteritems():
                 c += k + "="+ v + "&"
 
+            if c == "":
+                c = post_str
             f2.request.content = c
 
         if not found:
