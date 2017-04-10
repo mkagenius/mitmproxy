@@ -42,6 +42,15 @@ class Column(base.Column):
     def blank(self):
         return b""
 
+    def get_number_start_idx(self, o):
+        idx = len(o)
+        for i in xrange(len(o)):
+            if o[len(o) - i - 1] in '0123456789':
+                idx = i
+            else:
+                break
+        return len(o) - idx - 1
+
     def keypress(self, key, editor):
         if key == "r":
             if editor.walker.get_current_value() is not None:
@@ -65,13 +74,18 @@ class Column(base.Column):
                 n = editor.master.spawn_editor(o.encode("string-escape"))
                 n = strutils.clean_hanging_newline(n)
                 editor.walker.set_current_value(n)
-                
+
         elif key == "D":
             # base64 decode
             o = editor.walker.get_current_value()
             if o is not None:
                 try:
-                    b64decoded_val = base64.b64decode(o)
+                    if ' ' in o:
+                        parts = o.split(' ', 1)
+                        if len(parts) == 2:
+                            b64decoded_val = parts[0] + ' ' + base64.b64decode(parts[1])
+                    else:
+                        b64decoded_val = base64.b64decode(o)
                 except:
                     b64decoded_val = o
                 editor.walker.set_current_value(b64decoded_val)
@@ -81,7 +95,12 @@ class Column(base.Column):
             o = editor.walker.get_current_value()
             if o is not None:
                 try:
-                    b64encoded_val = base64.b64encode(o)
+                    if ' ' in o:
+                        parts = o.split(' ', 1)
+                        if len(parts) == 2:
+                            b64encoded_val = parts[0] + ' ' + base64.b64encode(parts[1])
+                    else:
+                        b64encoded_val = base64.b64encode(o)
                 except:
                     b64encoded_val = o
                 editor.walker.set_current_value(b64encoded_val)
@@ -90,7 +109,11 @@ class Column(base.Column):
             # increase a number by 1
             o = editor.walker.get_current_value()
             try:
-                n = str(int(o) + 1)
+                idx = self.get_number_start_idx(o)
+                part1 = o[0:idx]
+                part2 = o[idx:]
+                part2 = str(int(part2) + 1)
+                n = part1 + part2
             except:
                 n = o
             editor.walker.set_current_value(n)
@@ -99,7 +122,11 @@ class Column(base.Column):
             # increase a number by 1
             o = editor.walker.get_current_value()
             try:
-                n = str(int(o) - 1)
+                idx = self.get_number_start_idx(o)
+                part1 = o[0:idx]
+                part2 = o[idx:]
+                part2 = str(int(part2) - 1)
+                n = part1 + part2
             except:
                 n = o
             editor.walker.set_current_value(n)

@@ -187,6 +187,10 @@ class ConnectionItem(urwid.WidgetWrap):
             headers.set_all('Authorization', [])
         if 'X-Authorization' in headers:
             headers.set_all('X-Authorization', [])
+        if 'X-Auth' in headers:
+            headers.set_all('X-Auth', [])
+        if 'X-auth' in headers:
+            headers.set_all('X-auth', [])
         if 'Cookie' in headers:
             headers.set_all('Cookie', [])
         if 'cookie' in headers:
@@ -301,7 +305,7 @@ class ConnectionItem(urwid.WidgetWrap):
         """
         Test authorization by replacing user identity to a different user while keeping auth headers same
         :param f:
-        :return: 2 if auth is broken, else 1, 3 is yellow intermideate stage
+        :return: 2 if auth is broken, else 1, 3 is yellow intermediate stage
         """
         if not f.response:
             if "backup" not in f.get_state() or "response" not in f.get_state()["backup"]:
