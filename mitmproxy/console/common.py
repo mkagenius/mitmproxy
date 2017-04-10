@@ -37,6 +37,7 @@ METHOD_OPTIONS = [
 
 re_phone = re.compile(r'(\b\d{10}\b)')
 
+# regex caution: useful only for url and form raw data, not multipart form or json post body
 re_email = re.compile(r'([^@\/=\?]+(?:@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+)')
 
 re_userid = re.compile(r'(?:[\/=])(\d{4,9})(?:[\?\/&]|$)') #re.compile(r'\b\d{4,7}\b')

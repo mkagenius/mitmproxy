@@ -10,7 +10,7 @@ from mitmproxy.flow import export
 
 import time
 import re
-
+import json
 import urlparse
 
 def _mkhelp():
@@ -119,6 +119,37 @@ class BodyPile(urwid.Pile):
 
 
 class ConnectionItem(urwid.WidgetWrap):
+    PHONE_NUMBER = "7259361414"
+    EMAIL = "mkagenius@gmail.com"
+    def is_mobile_number(self, s):
+        re_phone = re.compile(r'(\d{10})')
+        if re_phone.match(s):
+            return True
+        return False
+
+    def is_email(self, s):
+        re_email =  re.compile(r'([^@\/=\?]+(?:@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+)')
+        if re_email.match(s):
+            return True
+        return False
+
+    def decrement_id(self, id):
+        return str(int(id) - 1)
+
+    def update_json(self, jsn, kk, vv):
+        try:
+            jsn = json.loads(jsn)
+            for k, v in jsn.iteritem():
+                if type(v) == dict:
+                    jsn[k] = json.loads(self.update_json(json.dumps(v), kk, vv))
+                elif k == kk:
+                    jsn[k] = vv
+
+            return json.dumps(jsn)
+        except:
+            if type(jsn) == dict:
+                return json.dumps(jsn)
+            return jsn
 
     def __init__(self, master, state, flow, focus):
         self.master, self.state, self.flow = master, state, flow
@@ -263,6 +294,14 @@ class ConnectionItem(urwid.WidgetWrap):
         else:
             return 1
 
+    def get_content_type(self, headers):
+        content_type = ""
+        if "content-type" in headers:
+            content_type = headers["content-type"]
+        elif "Content-Type" in headers:
+            content_type = headers["Content-Type"]
+        return content_type
+
     def edit_url(self, regex, url):
         """
         Swap existing phone number and email to see if Authorization is properly implemented for this API or not
@@ -282,12 +321,12 @@ class ConnectionItem(urwid.WidgetWrap):
                 # Todo: this is regex is not good enough to detect phone number
                 span_tup = i.span(1)
                 ret += url[prev:span_tup[0]]
-                ret += str(7259361414)
+                ret += str(self.PHONE_NUMBER)
             if i.group(2):
                 # email
                 span_tup = i.span(2)
                 ret += url[prev:span_tup[0]]
-                ret += str("mkagenius@gmail.com")
+                ret += str(self.EMAIL)
             if i.group(3):
                 # user id
                 span_tup = i.span(3)  
@@ -299,7 +338,60 @@ class ConnectionItem(urwid.WidgetWrap):
         ret += url[prev:]
 
         return ret
+    def manipulate_user_id(self, k, v):
+        if "user_id" in k or "userid" in k or "_id" in k or "profileid" in k or "cartid" in k:
+            v = self.decrement_id(v)
+        if "phone" in k or "mobile" in k or self.is_mobile_number(v):
+            v = self.PHONE_NUMBER
+        if "email" in k or self.is_email(v):
+            v = self.EMAIL
+        return v
 
+    def edit_body(self, body, content_type):
+        """
+        Edit user id, phone or email to see if API still works, meaning authorization is not working
+        :param body:
+        :return:
+        """
+
+        if "json" in content_type:
+            req_dict = common.flatten(body)
+            req_keys = req_dict.keys()
+            for kk in req_keys:
+                k = kk.lower()
+                if "user_id" in k or "userid" in k or "_id" in k or "profileid" in k or "cartid" in k:
+                    body = self.update_json(body, kk, self.decrement_id(req_dict[kk]))
+                if "phone" in k or "mobile" in k or self.is_mobile_number(req_dict[kk]):
+                    body = self.update_json(body, kk, self.PHONE_NUMBER)
+                if "email" in k or self.is_email(req_dict[kk]):
+                    body = self.update_json(body, kk, self.EMAIL)
+            return body
+
+        if "multipart" in content_type:
+            # TODO: edit params
+            return body
+        elif "form" in content_type:
+            parts = body.split("&")
+            ret = ""
+            for p in parts:
+                [kk, v] = p.split('=',1)
+                k = kk.lower()
+
+                v = self.manipulate_user_id(k, v)
+
+                ret += kk + "=" + v + "&"
+            return ret
+
+        return body
+
+    def edit_headers(self, headers):
+        dict = headers
+        for kk, v in headers.iteritems():
+            k = kk.lower()
+            v = self.manipulate_user_id(k, v)
+            dict[kk] = v
+
+        return dict
 
     def test_authorization(self, f):
         """
@@ -314,19 +406,13 @@ class ConnectionItem(urwid.WidgetWrap):
         prev_response = f.response
         signals.status_message.send(message="Testing authorization.")
 
-        f.request.headers = self.remove_auth(f.request.headers)
-
-        # re_phone_or_email_or_userid = re.compile(r'(?:\b\d{10}\b)|(?:[^@\/=\?\ ]+(@|%40)[^@\/=\?]+\.[^@\/=\?]+)|(?:[\/=](\d{4,8})([\?\/&]|$))')
-
-        # # email replaced with some test account email
-        # re_email = re.compile(r'[^@\/=\?]+(@|%40)[^@\/=\?]+\.[^@\/=\?\ ]+')
-
-        # # phone replaced with some test account phone
-        # re_phone = re.compile(r'\b\d{10}\b')
-
-        # # user id / card id / other id decreased by 1
-        # re_userid = re.compile(r'[\/=](\d{4,8})([\?\/&]|$)') #re.compile(r'\b\d{4,8}\b')
         f.request.url = self.edit_url(common.re_phone_or_email_or_userid, f.request.url)
+
+        # edit url, body or header whichever contains user id or email
+        f.request.content = self.edit_body(f.request.content, self.get_content_type(f.request.headers))
+
+        f.request.headers = self.edit_headers(f.request.headers)
+
         signals.status_message.send(message="Edited url: " + f.request.url)
         r = self.master.replay_request(f)
         return 3
@@ -343,6 +429,8 @@ class ConnectionItem(urwid.WidgetWrap):
 
         return 0
 
+
+
     def is_different_data(self, new_resp, old_resp):
         """
         This compares new response data with the original response data and decides if they are same or new data got fetched
@@ -350,11 +438,7 @@ class ConnectionItem(urwid.WidgetWrap):
         :param old_resp:
         :return: True if data leaked and False if not
         """
-        content_type = ""
-        if "content-type" in new_resp.headers:
-            content_type = new_resp.headers["content-type"]
-        elif "Content-Type" in new_resp.headers:
-            content_type = new_resp.headers["Content-Type"]
+        content_type = self.get_content_type(new_resp.headers)
 
         if "json" in content_type:
             old_resp_dict = common.flatten(old_resp["content"])
@@ -385,6 +469,24 @@ class ConnectionItem(urwid.WidgetWrap):
                 return False # if error happened then its not a data leak
             return True # if error not happened then its a data leak
 
+    def is_request_same(self, f1, f2):
+
+        # z = common.flatten(f1)
+        # if "url" in z:
+        #     signals.status_message.send(message="Found url key.")
+        # else:
+        #     signals.status_message.send(message="NOT found url key.")
+        if f1["request"]["content"] != f2.request.content:
+            return False
+        # if f1["response"]["url"] != f2.request.url:
+        #     return False
+        for k,v in f1["request"]["headers"]:
+            if f2.request.headers[k] != v:
+                return False
+        signals.status_message.send(message="Request is same.")
+        return True
+
+
     def gather_authorization_result(self, f):
         """
         This function gathers all the authorization tests done so far on the flow
@@ -396,11 +498,12 @@ class ConnectionItem(urwid.WidgetWrap):
             return 0
         backup_flow = f.get_state()["backup"]
 
+        # TODO if request is unchanged, return no data leak
+        if self.is_request_same(backup_flow, f):
+            return 1
+
         ## TODO test if response contains data different than this but some user data
         if f.response and f.response.status_code >= 200 and f.response.status_code < 300:
-            
-            
-
             if f.response.content == backup_flow["response"]["content"]:
                 return 1 # authorization is done via cookies or something
             elif self.is_different_data(f.response, backup_flow["response"]): # same type of data content came back, but not exact
