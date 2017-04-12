@@ -71,14 +71,14 @@ def parse_qs2(body):
 
 def process_list(k,v):
         d = {}
-        if len(v) > 0:
+        if len(v) > 0: # only first value is taken, maybe all should be taken
                 if type(v[0]) == dict:
                         for i in v:
                                 d.update(flatten(i))
                 elif type(v[0]) == list:
                         for i in v:
                                 d.update(process_list(i))
-                elif type(v[0]) == str:
+                else:
                         d[k] = v[0]
         else:
                 d[k]=""
@@ -109,13 +109,15 @@ def resp_body_contains_otp(body_content, content_type):
                 for k,v in resp_json_flatten.iteritems():                    
                         if (otp_regex.match(str(v)) and str(v) not in ['200', '400', '404', '500']) or "sms" in k.lower() or "otp" in k.lower(): 
                                 signals.status_message.send(message="[otp] OTP? %s=%s" % (k,v))
-                                return 2
+                                return True
+
+                return False
 
         except ValueError:
                 signals.status_message.send(message="[otp]Content type was: %s but no json could be decoded." % content_type)
-                return 1
+                return False
 
-        return 1
+        return False
 
 def salt_leakage_in_response(content):
     # ,"salt":"luYFtcEf",

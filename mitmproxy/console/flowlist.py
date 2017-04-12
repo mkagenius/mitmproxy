@@ -27,14 +27,16 @@ def _mkhelp():
         ("f", "filter view"),
         ("F", "toggle follow flow list"),
         ("L", "load saved flows"),
-        ("u", "toggle listed flows markings"),
         ("m", "toggle flow mark"),
         ("M", "toggle marked flow view"),
         ("n", "create a new request"),
+        ("N", "add filter to remove Noise"),
         ("r", "replay request"),
         ("R", "repeat this 64 times with incrementing id"),
         ("S", "server replay request/s"),
+        ("u", "toggle listed flows markings"),
         ("U", "unmark all marked flows"),
+        ("v", "remove all filters"),
         ("V", "revert changes to request"),
         ("w", "save flows "),
         ("W", "stream flows to file"),
@@ -289,15 +291,15 @@ class ConnectionItem(urwid.WidgetWrap):
         signals.status_message.send(message="Testing otp leak")
         # f.request.headers = self.remove_auth(f.request.headers)
         content_type = ""
-        if "content-type" in f.request.headers:
-            content_type = f.request.headers["content-type"]
-        elif "Content-Type" in f.request.headers:
-            content_type = f.request.headers["Content-Type"]
+        if "content-type" in f.response.headers:
+            content_type = f.response.headers["content-type"]
+        elif "Content-Type" in f.response.headers:
+            content_type = f.response.headers["Content-Type"]
         
         if "json" in content_type.lower() and common.resp_body_contains_otp(f.response.content, content_type):
             return 2
         else:
-            return 1
+            return 1 # since so far only json leaked the salt
 
     def get_content_type(self, headers):
         content_type = ""
@@ -379,6 +381,8 @@ class ConnectionItem(urwid.WidgetWrap):
             parts = body.split("&")
             ret = ""
             for p in parts:
+                if '=' not in p:
+                    continue
                 [kk, v] = p.split('=',1)
                 k = kk.lower()
 
@@ -612,8 +616,11 @@ class ConnectionItem(urwid.WidgetWrap):
                 self.state.enable_marked_filter()
             signals.flowlist_change.send(self)
         elif key == "N":
-            
-            self.state.set_view_filter("!(.js) & !(.css) & !(.ttf) & !(.png) & !(.svg) & !(gstatic) & !(.ico) & !(.jpg) & !(.jpeg) & !(.woff) & !(.woff2) & !(fbcdn) & !(google) & !(facebook)")
+
+            self.state.set_view_filter("!(.gif) & !(.js) & !(.css) & !(.ttf) & !(.png) & !(.svg) & !(gstatic) & !(.ico) & !(.jpg) & !(.jpeg) & !(.woff) & !(.woff2) & !(fbcdn) & !(google) & !(facebook)")
+            signals.flowlist_change.send(self)
+        elif key == "v":
+            self.state.set_view_filter("")
             signals.flowlist_change.send(self)
         elif key == "r":
             try:
