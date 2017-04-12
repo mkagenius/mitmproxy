@@ -27,6 +27,7 @@ def _mkhelp():
         ("f", "filter view"),
         ("F", "toggle follow flow list"),
         ("L", "load saved flows"),
+        ("u", "toggle listed flows markings"),
         ("m", "toggle flow mark"),
         ("M", "toggle marked flow view"),
         ("n", "create a new request"),
@@ -249,7 +250,11 @@ class ConnectionItem(urwid.WidgetWrap):
         #self.flow.backup()
         prev_response = f.response
         signals.status_message.send(message="Testing authentication.")
+        prev_headers = f.request.headers
         f.request.headers = self.remove_auth(f.request.headers)
+        if prev_headers == f.request.headers:
+            f.authentication = 1
+            return 1
         r = self.master.replay_request(f)
         return 3
 
@@ -418,6 +423,8 @@ class ConnectionItem(urwid.WidgetWrap):
         return 3
 
     def gather_authentication_result(self, f):
+        if f.authentication > 0:
+            return f.authentication
         if "backup" not in f.get_state():
             signals.status_message.send(message="No backup found..maybe you checked result too fast.")
             return 0
@@ -481,7 +488,7 @@ class ConnectionItem(urwid.WidgetWrap):
         # if f1["response"]["url"] != f2.request.url:
         #     return False
         for k,v in f1["request"]["headers"]:
-            if f2.request.headers[k] != v:
+            if k not in f2.request.headers or f2.request.headers[k] != v:
                 return False
         signals.status_message.send(message="Request is same.")
         return True
@@ -590,6 +597,10 @@ class ConnectionItem(urwid.WidgetWrap):
         elif key == "f4":
             self.flow.otp_leak += 1
             self.flow.otp_leak %= 3
+            signals.flowlist_change.send(self)
+        elif key == "u":
+            for f in self.master.state.view:
+                f.marked = not f.marked
             signals.flowlist_change.send(self)
         elif key == "m":
             self.flow.marked = not self.flow.marked
