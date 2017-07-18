@@ -529,6 +529,7 @@ class ConnectionItem(urwid.WidgetWrap):
     def keypress(self, xxx_todo_changeme, key):
         (maxcol,) = xxx_todo_changeme
         key = common.shortcuts(key)
+
         # Test keys are number 1 to 6, flow must me marked before run test on it.
         if key == "1":
             for f in self.state.flows:
@@ -677,6 +678,15 @@ class ConnectionItem(urwid.WidgetWrap):
         elif key == "X":
             if self.flow.killable:
                 self.flow.kill(self.master)
+        elif key == "z":
+            # create a copy since used in for loop
+            copy_of_state_view = self.state.view[:]
+            for f in copy_of_state_view:
+                signals.add_log("Len of state.view %d " % len(self.state.view), level="info")
+                if f.killable:
+                    f.kill(self.master)
+                self.state.delete_flow(f)
+            signals.flowlist_change.send(self)
         elif key == "enter":
             if self.flow.request:
                 self.flow = common.add_key_log(self.flow, "enter")
@@ -789,8 +799,6 @@ class FlowListBox(urwid.ListBox):
         if key == "A":
             self.master.accept_all()
             signals.flowlist_change.send(self)
-        elif key == "z":
-            self.master.clear_flows()
         elif key == "e":
             self.master.toggle_eventlog()
         elif key == "g":

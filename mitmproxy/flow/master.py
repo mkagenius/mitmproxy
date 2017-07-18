@@ -127,26 +127,10 @@ class FlowMaster(controller.Master):
         f2 = f.copy()
         found = False
         headers = f2.request.headers
+        possible_headers = ["userid", "user_id", "customerid", "customer_id", "profileid", "profile_id"]
+
         if f2.request.headers:
-            for k, v in headers.iteritems():
-                if "userid" in k.lower() or "user_id" in k.lower():
-                    headers[k] = self.increment_user_id(headers[k])
-                    found = True
-                    break
-                if "customerid" in k.lower() or "customer_id" in k.lower():
-                    headers[k] = self.increment_user_id(headers[k])
-                    found = True
-                    break
-
-                if "profileid" in k.lower() or "profile_id" in k.lower():
-                    headers[k] = self.increment_user_id(headers[k])
-                    found = True
-                    break
-
-                if "id" == k.lower():
-                    headers[k] = self.increment_user_id(headers[k])
-                    found = True
-                    break
+            found = self.increment_header(found, headers, possible_headers)
 
         f2.request.headers = headers
 
@@ -154,25 +138,7 @@ class FlowMaster(controller.Master):
             post_str = f.request.content
             post_dict = dict(urlparse.parse_qsl(post_str))
 
-            for k,v in post_dict.iteritems():
-                if "userid" in k.lower() or "user_id" in k.lower():
-                    post_dict[k] = self.increment_user_id(post_dict[k])
-                    found = True
-                    break
-                if "customerid" in k.lower() or "customer_id" in k.lower():
-                    post_dict[k] = self.increment_user_id(post_dict[k])
-                    found = True
-                    break
-
-                if "profileid" in k.lower() or "profile_id" in k.lower():
-                    post_dict[k] = self.increment_user_id(post_dict[k])
-                    found = True
-                    break
-
-                if "id" == k.lower():
-                    post_dict[k] = self.increment_user_id(post_dict[k])
-                    found = True
-                    break
+            found = self.increment_header(found, post_dict, possible_headers)
 
             c = ""
             for k,v in post_dict.iteritems():
@@ -195,6 +161,20 @@ class FlowMaster(controller.Master):
             f2.request.url = new_url
         return f2
 
+    def increment_header(self, found, headers, possible_headers):
+        for k, v in headers.iteritems():
+            for header in possible_headers:
+                if header in k.lower():
+                    headers[k] = self.increment_user_id(headers[k])
+                    found = True
+                    break
+
+            if "id" == k.lower():
+                headers[k] = self.increment_user_id(headers[k])
+                found = True
+                break
+        return found
+
     def repeater(self, f):
         """
             Repeat with a particular field being incremently changed like userId
@@ -207,8 +187,6 @@ class FlowMaster(controller.Master):
             f2 = self.increment_id(f2)
             # replay the request
             self.replay_request(f2)
-            if (i and not (i & (i-1))):
-                self.state.add_flow(f2)
 
 
     def duplicate_flow(self, f):
