@@ -12,7 +12,7 @@ class Message(object):
     def __init__(self, tokens):
         track = set([])
         for i in tokens:
-            if i.unique_name:
+            if hasattr(i, 'unique_name'):
                 if i.unique_name in track:
                     raise exceptions.ParseException(
                         "Message has multiple %s clauses, "
@@ -21,6 +21,8 @@ class Message(object):
                     )
                 else:
                     track.add(i.unique_name)
+            else:
+                track.add(i)
         self.tokens = tokens
 
     def strike_token(self, name):

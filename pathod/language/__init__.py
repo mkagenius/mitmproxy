@@ -65,7 +65,7 @@ def parse_pathoc(s, use_http2=False):
         else:
             expressions = [
                 websockets.WebsocketClientFrame.expr(),
-                http.Request.expr(),
+                http.Request.pathoc_expr(),
             ]
         reqs = pp.OneOrMore(pp.Or(expressions)).parseString(s, parseAll=True)
     except pp.ParseException as v:

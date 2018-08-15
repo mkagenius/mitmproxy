@@ -126,6 +126,122 @@ def report_format_flows(flows):
         html += "<tr>" + td(f.request.url) + td(f.authentication) + td(f.authorization) + td(f.otp_leak) + td(f.payu_salt_leak) + "</tr>"
     return html+"</table>"
 
+import six
+def decode(s):
+    """
+        Takes a urlencoded string and returns a list of surrogate-escaped (key, value) tuples.
+    """
+    if six.PY2:
+        return urllib.parse.parse_qsl(s, keep_blank_values=True)
+    else:
+        return urllib.parse.parse_qsl(s, keep_blank_values=True, errors='surrogateescape')
+
+def get_swagger_of_flows(hostname, flows):
+    import json
+    j = {}
+    j["swagger"] = "2.0"
+    j["info"] = {"description":"Generated via MITMPROXY", "version":"", "title":"APIs generated from Mitmproxy"}
+    j["host"] = hostname
+    j["schemes"] = ["https", "http"]
+    j["paths"] = {}
+    j["definitions"] = {}
+    for f in flows:
+        path = f.request.path
+        j["paths"][path] = {}
+
+        method = f.request.method.lower()
+        j["paths"][path][method] = {}
+        j["paths"][path][method]["tags"] = [path.split("/")[1]]
+        j["paths"][path][method]["responses"] = {}
+        try:
+            # Sometimes the status code is missing so to avoid Exception
+            status_code = str(f.response.status_code)
+            j["paths"][path][method]["responses"][status_code] = {}
+            try:
+                reason = str(f.response.reason)
+                j["paths"][path][method]["responses"][status_code] = {"description":reason}
+            except:
+                pass
+        except:
+            pass
+
+        
+
+        
+        content_type = f.request.headers.get('content-type','')
+        j["paths"][path][method]["consumes"] = [content_type]
+    
+
+        try:
+            content_type = f.response.headers.get('content-type','')
+            j["paths"][path][method]["produces"] = [content_type]
+        except:
+            pass            
+
+
+        content_type = f.request.headers.get("content-type","").lower()
+        object_name = path.split("/")[1]
+
+        if object_name not in j["definitions"].keys():
+            j["definitions"][object_name] = {"type": "object"}
+        if "properties" not in j["definitions"][object_name].keys():
+            j["definitions"][object_name]["properties"] = {}
+
+        if content_type ==  "application/x-www-form-urlencoded":
+            form_data = dict(decode(f.request.content))
+            params = []
+            for k in form_data.keys():
+                name = k
+                _type = "string"
+
+                try:
+                    int(form_date[k])
+                    _type = "integer"
+                except:
+                    pass
+
+                
+                
+                j["definitions"][object_name]["properties"][name] = {"type":_type}
+
+            d = {
+                        "name":"body", 
+                        "in": "body", 
+                        "schema":
+                            {
+                                "$ref":"#/definitions/"+object_name
+                            }
+                    }
+            j["paths"][path][method]["parameters"] =  [d]
+            
+                
+
+    return json.dumps(j)
+            
+
+def swagger_format_flows(flows):
+
+    # Group by host name (eg. ebay.com  or paypal.com)
+    host2flows = {}
+    for f in flows:
+        if f.request.host in host2flows:
+            host2flows[f.request.host].append(f)
+        else:
+            host2flows[f.request.host] = [f]
+
+
+    # for each host create a separate swagger file
+    NUM_HOSTS = len(host2flows.keys())
+    all_swaggers = []
+    for k in host2flows.keys():
+        hostname = k
+        
+        j = get_swagger_of_flows(hostname, host2flows[k])
+
+        all_swaggers.append(j)
+
+    return all_swaggers
+
 def har_format(flow):
 
     # -1 indicates that these values do not apply to current request

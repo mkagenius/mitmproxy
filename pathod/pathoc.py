@@ -424,7 +424,11 @@ class Pathoc(tcp.TCPClient):
             self.wfile if self.showreq else None,
         )
         with logger.ctx() as lg:
-            lg(">> %s" % r)
+            try:
+                lg(">> %s" % r)
+            except AttributeError as e:
+                lg("error logging..")
+
             resp, req = None, None
             try:
                 req = language.serve(r, self.wfile, self.settings)

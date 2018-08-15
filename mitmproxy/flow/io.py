@@ -12,6 +12,11 @@ from mitmproxy.flow import io_compat, export
 class FlowWriter:
     def __init__(self, fo):
         self.fo = fo
+    def add_as_swagger(self, flows):
+        arr = export.swagger_format_flows(flows)
+        for j in arr:
+            self.fo.write(j)
+            
     def add_as_report(self, flows):
         html = export.report_format_flows(flows)
         self.fo.write(html)

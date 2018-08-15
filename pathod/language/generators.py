@@ -56,6 +56,17 @@ def rand_byte(chars):
         return random.choice(chars)
     return bytes([random.choice(chars)])
 
+class HardcodedGenerator(object):
+    def __init__(self):
+        pass
+    def __len__(self):
+        return 22
+
+    def __getitem__(self, x):
+        return "@dashboard.fallible.co"
+
+    def __repr__(self):
+        return "@dashboard.fallible.co"
 
 class RandomGenerator(object):
 

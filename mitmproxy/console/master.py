@@ -583,7 +583,7 @@ class ConsoleMaster(flow.FlowMaster):
             )
         )
 
-    def _write_flows(self, path, flows, as_har=False, as_report=False):
+    def _write_flows(self, path, flows, as_har=False, as_report=False, as_swagger=False):
         if not path:
             return
         path = os.path.expanduser(path)
@@ -594,6 +594,8 @@ class ConsoleMaster(flow.FlowMaster):
                 fw.add_as_har(flows)
             elif(as_report):
                 fw.add_as_report(flows)
+            elif(as_swagger):
+                fw.add_as_swagger(flows)
             else:
                 for i in flows:
                     fw.add(i)
@@ -602,16 +604,20 @@ class ConsoleMaster(flow.FlowMaster):
             signals.status_message.send(message=v.strerror)
 
     def save_one_flow(self, path, flow):
-        return self._write_flows(path, [flow], False, False)
+        return self._write_flows(path, [flow], False, False, False)
 
     def save_flows(self, path):
-        return self._write_flows(path, self.state.view, False, False)
+        return self._write_flows(path, self.state.view, False, False, False)
 
     def save_flows_as_har(self, path):
-        return self._write_flows(path, self.state.view, True, False)
+        return self._write_flows(path, self.state.view, True, False, False)
 
     def save_flows_as_report(self, path):
-        return self._write_flows(path, self.state.view, False, True)
+        return self._write_flows(path, self.state.view, False, True, False)
+
+    def save_flows_as_swagger(self, path):
+        return self._write_flows(path, self.state.view, False, False, True)
+       
 
     def load_flows_callback(self, path):
         if not path:

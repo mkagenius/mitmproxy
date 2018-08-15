@@ -151,49 +151,71 @@ class TokValueNakedLiteral(_TokValueLiteral):
         return strutils.bytes_to_escaped_str(self.val, escape_single_quotes=True)
 
 
-class TokValueGenerate(Token):
+# class TokValueGenerate(Token):
+#
+#     def __init__(self, usize, unit, datatype):
+#         if not unit:
+#             unit = "b"
+#         self.usize, self.unit, self.datatype = usize, unit, datatype
+#
+#     def bytes(self):
+#         return self.usize * human.SIZE_UNITS[self.unit]
+#
+#     def get_generator(self, settings_):
+#         return generators.RandomGenerator(self.datatype, self.bytes())
+#
+#     def freeze(self, settings):
+#         g = self.get_generator(settings)
+#         return TokValueLiteral(strutils.bytes_to_escaped_str(g[:], escape_single_quotes=True))
+#
+#     @classmethod
+#     def expr(cls):
+#         e = pp.Literal("@").suppress() + "fallible.co"
+#
+#         u = reduce(
+#             operator.or_,
+#             [pp.Literal(i) for i in human.SIZE_UNITS.keys()]
+#         ).leaveWhitespace()
+#         e = e + pp.Optional(u, default=None)
+#
+#         s = pp.Literal(",").suppress()
+#         s += reduce(
+#             operator.or_,
+#             [pp.Literal(i) for i in generators.DATATYPES.keys()]
+#         )
+#         e += pp.Optional(s, default="bytes")
+#         return e.setParseAction(lambda x: cls(*x))
+#
+#     def spec(self):
+#         s = "@%s" % self.usize
+#         if self.unit != "b":
+#             s += self.unit
+#         if self.datatype != "bytes":
+#             s += ",%s" % self.datatype
+#         return s
 
-    def __init__(self, usize, unit, datatype):
-        if not unit:
-            unit = "b"
-        self.usize, self.unit, self.datatype = usize, unit, datatype
 
-    def bytes(self):
-        return self.usize * human.SIZE_UNITS[self.unit]
+class AllowAtRateSymbol(Token):
 
-    def get_generator(self, settings_):
-        return generators.RandomGenerator(self.datatype, self.bytes())
-
-    def freeze(self, settings):
-        g = self.get_generator(settings)
-        return TokValueLiteral(strutils.bytes_to_escaped_str(g[:], escape_single_quotes=True))
+    def __init__(self, path):
+        self.path = str(path)
 
     @classmethod
     def expr(cls):
-        e = pp.Literal("@").suppress() + v_integer
-
-        u = reduce(
-            operator.or_,
-            [pp.Literal(i) for i in human.SIZE_UNITS.keys()]
-        ).leaveWhitespace()
-        e = e + pp.Optional(u, default=None)
-
-        s = pp.Literal(",").suppress()
-        s += reduce(
-            operator.or_,
-            [pp.Literal(i) for i in generators.DATATYPES.keys()]
-        )
-        e += pp.Optional(s, default="bytes")
+        e = pp.Literal("@dashboard.fallible.co")
         return e.setParseAction(lambda x: cls(*x))
 
-    def spec(self):
-        s = "@%s" % self.usize
-        if self.unit != "b":
-            s += self.unit
-        if self.datatype != "bytes":
-            s += ",%s" % self.datatype
-        return s
+    @classmethod
+    def parseAction(cls, x):
+        v = cls(*x)
+        return v
 
+    def spec(self):
+        return "@dashboard.fallible.co hardcoded"
+
+
+    def get_generator(self, settings):
+        return generators.HardcodedGenerator()
 
 class TokValueFile(Token):
 
@@ -231,7 +253,8 @@ class TokValueFile(Token):
 
 TokValue = pp.MatchFirst(
     [
-        TokValueGenerate.expr(),
+        AllowAtRateSymbol.expr(),
+      #  TokValueGenerate.expr(),
         TokValueFile.expr(),
         TokValueLiteral.expr()
     ]
@@ -240,7 +263,8 @@ TokValue = pp.MatchFirst(
 
 TokNakedValue = pp.MatchFirst(
     [
-        TokValueGenerate.expr(),
+        AllowAtRateSymbol.expr(),
+       # TokValueGenerate.expr(),
         TokValueFile.expr(),
         TokValueLiteral.expr(),
         TokValueNakedLiteral.expr(),

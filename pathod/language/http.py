@@ -20,6 +20,9 @@ class Raw(base.CaselessLiteral):
     TOK = "r"
 
 
+class RawMethod(base.Value):
+    pass
+
 class Path(base.Value):
     pass
 
@@ -42,6 +45,7 @@ class Times(base.Integer):
 
 class Method(base.OptionsOrValue):
     options = [
+        "HELP",
         "GET",
         "HEAD",
         "POST",
@@ -278,7 +282,7 @@ class Request(_HTTPMessage):
 
     @property
     def method(self):
-        return self.tok(Method)
+        return self.tok(RawMethod)
 
     @property
     def path(self):
@@ -342,6 +346,28 @@ class Request(_HTTPMessage):
         return self.__class__(
             [i.resolve(settings, intermediate) for i in tokens]
         )
+
+    @classmethod
+    def pathoc_expr(cls):
+        parts = [i.expr() for i in cls.comps]
+        atom = pp.MatchFirst(parts)
+        resp = pp.And(
+            [
+                pp.MatchFirst(
+                    [
+                        WS.expr() + pp.Optional(
+                            base.Sep + Method.expr()
+                        ),
+                        RawMethod.expr(),
+                    ]
+                ),
+                base.Sep,
+                Path.expr(),
+                pp.ZeroOrMore(base.Sep + atom)
+            ]
+        )
+        resp = resp.setParseAction(cls)
+        return resp
 
     @classmethod
     def expr(cls):

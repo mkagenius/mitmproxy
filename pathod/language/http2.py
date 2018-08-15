@@ -91,6 +91,7 @@ class StatusCode(base.Integer):
 
 class Method(base.OptionsOrValue):
     options = [
+        "HELP",
         "GET",
         "HEAD",
         "POST",
